@@ -1,0 +1,12 @@
+flask==3.0.0
+groq==0.4.1
+easyocr==1.6.2
+openai-whisper==20231117
+torch==2.1.0
+torchvision==0.16.0
+torchaudio==0.17.0
+numpy==1.24.3
+pillow==10.0.0
+python-dotenv==1.0.0
+requests==2.31.0
+psutil==5.9.5
