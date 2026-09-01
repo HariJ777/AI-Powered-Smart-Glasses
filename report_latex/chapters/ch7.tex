@@ -1,0 +1,63 @@
+% =====================================================================
+% CHAPTER 7: EXPECTED OUTCOME
+% =====================================================================
+\chapter{Expected Outcome}
+
+Upon successful completion of the project, the following functional outcomes and performance targets are expected to be achieved:
+
+\section{Functional Outcomes}
+\begin{itemize}[leftmargin=1.5cm]
+\item A working smart glasses prototype that will capture images through the ESP32-CAM OV2640 camera module and wirelessly transmit them to the Flask backend server for AI processing. The processed AI response will be displayed on the SSD1306 OLED screen (128$\times$64 pixels) with automatic word wrapping and scrolling, and spoken through the micro speaker via text-to-speech conversion.
+
+\item A Flask backend with Smart Routing that will correctly distribute requests between cloud AI models (Groq API --- Llama 4 Scout 17B for vision, Llama 3.3 70B for language processing) and local models (EasyOCR for OCR, Whisper-tiny for speech recognition). The Smart Router will manage model lifecycle automatically, loading models on demand and unloading them after use to optimize memory consumption.
+
+\item Five fully functional AI capabilities accessible through the glasses via the two-button interface:
+\begin{enumerate}
+\item \textbf{Scene Description} --- The camera will capture an image and the Llama 4 Scout 17B vision model will generate a detailed natural language description of the scene, including objects, people, actions, and spatial relationships.
+\item \textbf{Text Extraction (OCR)} --- The EasyOCR model will read and extract printed text from signs, books, documents, labels, and other text-bearing surfaces captured by the camera.
+\item \textbf{Speech-to-Text} --- The INMP441 microphone will capture the user's speech and the Whisper-tiny model will transcribe it to text with support for English and other major languages.
+\item \textbf{Question Answering} --- The user will be able to ask factual, contextual, or general knowledge questions, and the Llama 3.3 70B language model will generate accurate, informative answers.
+\item \textbf{Language Translation} --- Text input (from OCR or speech) will be translated between supported languages (English, Hindi, Kannada, and other languages supported by Llama 3.3 70B).
+\end{enumerate}
+
+\item A portable, battery-powered wearable device mounted on a standard glasses frame that will be comfortable for extended wear and operable through simple button presses, requiring no technical expertise from the end user.
+
+\item A dual-output system that will deliver AI responses through both visual (OLED display) and auditory (speaker with TTS) channels simultaneously, accommodating users with varying degrees of visual impairment and different environmental conditions.
+\end{itemize}
+
+\section{Expected Performance Metrics}
+The following performance metrics are anticipated based on the architectural design, component specifications, and the known performance characteristics of the Groq API infrastructure:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{AI Task} & \textbf{Expected Response} & \textbf{Processing} & \textbf{Memory} \\
+ & \textbf{Time} & \textbf{Location} & \textbf{Usage} \\
+\hline
+Vision (Scene Description) & $<$ 1 second & Groq Cloud API & 0 MB local \\
+\hline
+Question Answering & $<$ 1 second & Groq Cloud API & 0 MB local \\
+\hline
+Language Translation & $<$ 1 second & Groq Cloud API & 0 MB local \\
+\hline
+OCR (Text Extraction) & $<$ 2 seconds & Local (EasyOCR) & $\approx$180 MB \\
+\hline
+Speech-to-Text & $<$ 1 second & Local (Whisper-tiny) & $\approx$145 MB \\
+\hline
+\end{tabular}
+\caption{Expected Response Time and Resource Usage Metrics}
+\end{table}
+
+\section{System-Level Performance Expectations}
+\begin{itemize}[leftmargin=1.5cm]
+\item \textbf{Peak GPU Memory Usage:} Expected to remain under 600 MB through the Smart Routing architecture, which will ensure that only one local AI model is resident in GPU memory at any given time. This is well within the 4 GB capacity of entry-level NVIDIA GPUs (GTX 1650) and the 8 GB capacity of the RTX 3050.
+
+\item \textbf{API Availability:} The Groq free-tier API provides 14,400 requests per day, which is sufficient for approximately 10 requests per minute sustained over 24 hours. For typical usage patterns (intermittent queries during waking hours), this allowance will support continuous daily use without throttling.
+
+\item \textbf{Network Latency:} On a local Wi-Fi network, HTTP request/response round-trip latency between the ESP32-CAM and the Flask server is expected to be under 50 ms, contributing minimally to the overall response time.
+
+\item \textbf{Battery Life:} The 1000 mAh LiPo battery is expected to provide 2.5--3 hours of continuous active use and 4--5 hours of intermittent use (with idle periods between commands).
+
+\item \textbf{Testing Coverage:} The system is expected to pass all tests across three tiers: AI model accuracy tests (5/5 models), memory management tests (3/3 scenarios), and Flask endpoint integration tests (5/5 endpoints), achieving a 100\% pass rate across all test categories.
+\end{itemize}

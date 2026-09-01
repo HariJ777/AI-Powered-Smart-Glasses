@@ -1,0 +1,35 @@
+% CHAPTER 1: INTRODUCTION
+\chapter{Introduction}
+
+\section{Overview}
+The rapid convergence of Internet of Things (IoT) technologies and Artificial Intelligence (AI) has opened transformative possibilities in the healthcare domain, particularly in the area of non-invasive diagnostic systems. Among the most promising applications is breath analysis---the detection and interpretation of volatile organic compounds (VOCs) present in exhaled human breath to identify biomarkers associated with various diseases. This project will present the design and implementation of RespiraTech, an intelligent IoT and AI-based breath analyzer system for early disease prediction in healthcare.
+
+Human breath contains over 3,500 different VOCs, many of which are produced as by-products of metabolic processes within the body. Research has demonstrated that specific VOCs serve as reliable biomarkers for various diseases: elevated acetone levels indicate diabetic ketoacidosis and uncontrolled diabetes mellitus, increased nitric oxide concentrations correlate with airway inflammation and asthma, and characteristic patterns of aldehydes, hydrocarbons, and sulfur compounds are associated with respiratory infections, chronic obstructive pulmonary disease (COPD), and even certain cancers. By measuring the concentrations and patterns of these compounds, it will be possible to infer the presence or risk of specific diseases without requiring blood draws, imaging, or other invasive procedures.
+
+The proposed RespiraTech system will utilize an array of gas sensors---specifically the MQ-135 for detecting ammonia, benzene, carbon dioxide, and other harmful gases, and the MQ-3 for detecting ethanol and acetone---interfaced with an ESP32 microcontroller. Environmental baseline conditions will be established using DHT11/DHT22 temperature and humidity sensors to compensate for ambient effects on gas readings. The sensor data will be transmitted wirelessly via Wi-Fi to a cloud platform where machine learning algorithms will analyze the VOC patterns and generate disease risk predictions.
+
+The AI engine will employ classification algorithms including Random Forest, Support Vector Machine (SVM), and neural network models trained on labelled breath datasets. These models will classify the incoming sensor data into risk categories for diseases such as asthma, respiratory infections, and diabetes. The prediction results, including risk percentages and health alerts, will be delivered to the user through a responsive mobile or web application, enabling continuous health monitoring and early medical intervention.
+
+\section{Purpose}
+The primary purpose of this project is to develop a portable, non-invasive, and affordable breath analysis device that will leverage IoT sensor technology and cloud-based AI to provide early disease detection capabilities. The system will aim to bridge the critical gap between the diagnostic capabilities available in well-equipped urban hospitals and the healthcare needs of populations in rural and remote areas where access to clinical laboratories and specialist physicians is severely limited.
+
+Traditional diagnostic approaches for respiratory and metabolic diseases require laboratory tests such as blood glucose measurement, pulmonary function tests (spirometry), arterial blood gas analysis, and chest X-rays. These procedures demand specialized equipment, trained technicians, and significant time, making them impractical for routine screening in resource-constrained settings. The RespiraTech system will provide a complementary screening tool that can indicate the need for further clinical investigation, potentially catching diseases at earlier, more treatable stages.
+
+The project will also serve as a proof-of-concept for the integration of low-cost IoT sensor arrays with cloud-based machine learning inference for healthcare applications. By demonstrating that meaningful health insights can be extracted from affordable gas sensor data using AI, the project will contribute to the growing field of point-of-care diagnostics and mHealth (mobile health) solutions.
+
+\section{Project Relevance}
+This project is relevant to multiple domains within computer science and engineering:
+
+\begin{itemize}[leftmargin=1.5cm]
+\item \textbf{Internet of Things (IoT):} The system will demonstrate core IoT principles through wireless sensor data collection, cloud-based data processing, and real-time feedback delivery to end-user applications. The ESP32 will serve as an IoT edge node that bridges the physical sensing domain with cloud analytics.
+
+\item \textbf{Artificial Intelligence and Machine Learning:} The project will integrate multiple ML paradigms including supervised classification (Random Forest, SVM), feature engineering from time-series sensor data, and model evaluation using metrics such as accuracy, precision, recall, and F1-score. The AI pipeline will demonstrate practical deployment of trained models for real-time inference.
+
+\item \textbf{Embedded Systems:} The ESP32 firmware development will involve analog-to-digital conversion for gas sensor readings, I2C communication for the OLED display, Wi-Fi networking, and real-time data sampling with appropriate timing and calibration routines.
+
+\item \textbf{Cloud Computing:} The system will utilize cloud platforms (ThingSpeak/Firebase) for data storage, processing, and ML model hosting, demonstrating practical cloud-IoT integration patterns for healthcare applications.
+
+\item \textbf{Healthcare Technology:} The system will directly address the need for accessible, affordable diagnostic screening tools, aligning with the World Health Organization's goal of universal health coverage and the United Nations Sustainable Development Goal 3 (Good Health and Well-being).
+
+\item \textbf{Cybersecurity and Privacy:} The system will implement secure data transmission (HTTPS/TLS) and access control mechanisms to protect sensitive health data, addressing privacy concerns inherent in healthcare IoT applications.
+\end{itemize}

@@ -1,0 +1,64 @@
+% CHAPTER 7: EXPECTED OUTCOME
+\chapter{Expected Outcome}
+
+Upon successful completion of the project, the following functional outcomes and performance targets are expected to be achieved:
+
+\section{Functional Outcomes}
+\begin{itemize}[leftmargin=1.5cm]
+\item A working prototype of the RespiraTech smart breath analyzer device that will capture exhaled breath samples through a dedicated collection chamber, measure VOC concentrations using the MQ-135 and MQ-3 gas sensor array, and wirelessly transmit the processed data to a cloud platform for AI-based disease prediction. The device will be portable, battery-powered, and operable through a simple push-button interface requiring no technical expertise from the user.
+
+\item A cloud-based AI inference pipeline that will preprocess incoming sensor data, normalize readings with environmental compensation, and run the data through three machine learning classifiers (Random Forest, SVM, Neural Network) to generate disease risk predictions. The prediction results will include risk percentages for three disease categories: asthma, respiratory infections, and diabetes.
+
+\item Three core health screening capabilities accessible through a single breath test:
+\begin{enumerate}
+\item \textbf{Respiratory Disease Screening} --- The MQ-135 sensor will detect broad-spectrum VOC patterns associated with airway inflammation, detecting elevated levels of nitrogen oxides, aldehydes, and other respiratory biomarkers to assess asthma and respiratory infection risk.
+\item \textbf{Diabetes Screening} --- The MQ-3 sensor will detect elevated acetone concentrations in breath that are characteristic of diabetic ketoacidosis. Breath acetone levels above 1.8 ppm will trigger elevated diabetes risk predictions.
+\item \textbf{General Health Assessment} --- The combined sensor array data will provide an overall health status indicator based on the aggregate VOC profile, identifying deviations from healthy baseline patterns.
+\end{enumerate}
+
+\item A responsive mobile or web application that will display disease risk percentages, historical health trend charts, and automated alert notifications. The application will support multiple user profiles and provide exportable health reports for sharing with healthcare providers.
+
+\item A local OLED display on the device that will show real-time sensor readings during breath capture, processing status indicators, and prediction results including disease risk percentages and overall health status (Low/Medium/High risk).
+
+\item A complete data logging system that will store all breath test results with timestamps in the cloud database, enabling longitudinal health monitoring and trend analysis over weeks and months.
+\end{itemize}
+
+\section{Expected Performance Metrics}
+The following performance metrics are anticipated based on the architectural design and component specifications:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Metric} & \textbf{Target Value} & \textbf{Measurement Method} \\
+\hline
+ML Classification Accuracy & $>$ 80\% & 5-fold cross-validation \\
+\hline
+Breath Capture Duration & 10 seconds & Timer-controlled sampling \\
+\hline
+Cloud Processing Time & $<$ 3 seconds & Server-side timing \\
+\hline
+End-to-End Response Time & $<$ 15 seconds & Capture to OLED display \\
+\hline
+Wi-Fi Transmission Reliability & $>$ 99\% & 100-transmission test \\
+\hline
+Sensor Warm-Up Time & $<$ 3 minutes & After initial calibration \\
+\hline
+Battery Life (continuous) & $>$ 3 hours & Full operation with sensors \\
+\hline
+\end{tabular}
+\caption{Expected Performance Metrics}
+\end{table}
+
+\section{System-Level Expectations}
+\begin{itemize}[leftmargin=1.5cm]
+\item \textbf{Sensor Sensitivity:} The MQ-135 is expected to detect VOC concentrations in the range of 10--1000 ppm, while the MQ-3 is expected to detect ethanol/acetone concentrations in the range of 0.04--4 mg/L. These ranges are sufficient to capture the biomarker concentration differences between healthy and diseased breath samples documented in the literature.
+
+\item \textbf{Multi-Disease Screening:} The ensemble ML approach (Random Forest + SVM + Neural Network with majority voting) is expected to achieve higher accuracy than any individual classifier, based on established machine learning ensemble theory and results reported in the literature review.
+
+\item \textbf{Environmental Compensation:} The inclusion of temperature and humidity data in the feature vector is expected to reduce false positive rates by 10--15\% compared to systems that do not compensate for ambient conditions, as gas sensor sensitivity is known to vary significantly with environmental factors.
+
+\item \textbf{Data Security:} All data transmitted between the ESP32 and cloud platform will use HTTPS encryption, and user health data stored in the cloud will be access-controlled through authentication tokens, ensuring compliance with health data privacy best practices.
+
+\item \textbf{Scalability:} The cloud-based architecture will enable the system to support multiple RespiraTech devices simultaneously, as each device communicates independently with the cloud platform via stateless REST API calls.
+\end{itemize}

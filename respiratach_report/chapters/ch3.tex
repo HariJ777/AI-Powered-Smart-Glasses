@@ -1,0 +1,32 @@
+% CHAPTER 3: PROBLEM STATEMENT AND OBJECTIVES
+\chapter{Problem Statement and Objectives}
+
+\section{Problem Statement}
+Early detection of respiratory and metabolic diseases remains a significant challenge in modern healthcare, particularly in developing countries and resource-constrained environments. While diseases such as asthma, chronic obstructive pulmonary disease (COPD), respiratory infections, and diabetes mellitus are among the leading causes of morbidity and mortality worldwide, their early-stage symptoms are often subtle and easily overlooked. The following three critical problems motivate the need for the proposed RespiraTech system:
+
+\begin{enumerate}[leftmargin=1.5cm]
+\item \textbf{Invasiveness and Complexity of Existing Diagnostics:} Current diagnostic methods for respiratory and metabolic diseases predominantly rely on invasive procedures such as blood draws (for glucose and HbA1c testing), arterial blood gas analysis, and bronchoscopy, or on complex procedures such as spirometry and chest radiography that require trained technicians and specialized equipment. These methods cause patient discomfort, carry risks of infection, and are impractical for routine screening or continuous monitoring. There is a critical need for non-invasive diagnostic alternatives that can provide meaningful health insights without causing patient discomfort or requiring clinical infrastructure.
+
+\item \textbf{Limited Healthcare Accessibility:} In rural and remote areas of developing countries like India, access to clinical laboratories, specialist physicians, and diagnostic imaging facilities is severely limited. The World Health Organization reports that over 50\% of the global population lacks access to essential health services, with the disparity being most acute in South Asia and Sub-Saharan Africa. Affordable, portable diagnostic devices that can function independently of hospital infrastructure would significantly improve health screening coverage in these underserved populations.
+
+\item \textbf{Absence of Continuous Health Monitoring:} Traditional diagnostic approaches provide only point-in-time snapshots of a patient's health status, typically when symptoms have already progressed to a noticeable stage. There is no widely available, affordable system that enables continuous or frequent monitoring of respiratory and metabolic biomarkers for early trend detection. A system that supports regular breath analysis with AI-driven trend tracking could identify disease onset before clinical symptoms manifest, enabling earlier intervention and better treatment outcomes.
+\end{enumerate}
+
+There is a clear and urgent need for a portable, non-invasive, and intelligent health screening system that can analyze human breath using IoT sensors and AI to provide early disease detection, continuous health monitoring, and accessible health risk communication through a user-friendly interface.
+
+\section{Objectives}
+The specific objectives of this project are:
+
+\begin{enumerate}[leftmargin=1.5cm]
+\item \textbf{Portable Breath Analysis Device:} To design and develop a portable breath analysis device using the ESP32 microcontroller interfaced with an array of gas sensors (MQ-135 for broad-spectrum VOC detection, MQ-3 for ethanol/acetone detection) and environmental sensors (DHT11/DHT22 for temperature and humidity compensation). The device will capture, digitize, and wirelessly transmit breath sensor data for cloud-based analysis.
+
+\item \textbf{Cloud-Based Data Pipeline:} To implement a cloud-based data processing pipeline using platforms such as ThingSpeak or Firebase that will receive sensor data from the ESP32 via Wi-Fi, store it in a structured database, preprocess and normalize the readings, and make the data available for machine learning inference through REST APIs.
+
+\item \textbf{AI-Driven Disease Prediction:} To develop and deploy machine learning classification models (Random Forest, Support Vector Machine, and neural network classifiers) trained on labelled breath VOC datasets to predict disease risk levels for asthma, respiratory infections, and diabetes from the incoming sensor data patterns.
+
+\item \textbf{User-Facing Health Application:} To develop a responsive mobile or web application that will display disease risk percentages, historical health trends, and automated alerts for anomalous readings, providing users with actionable health information in an intuitive and accessible format.
+
+\item \textbf{System Validation:} To validate the system through comprehensive testing including sensor calibration tests, data transmission reliability tests, machine learning model accuracy evaluation (targeting $>$80\% classification accuracy), and end-to-end integration tests from breath capture to risk display.
+
+\item \textbf{Non-Invasive and Accessible Design:} To ensure the entire system is non-invasive (requiring only an exhaled breath sample), portable (battery-powered and lightweight), and affordable (using commercially available, low-cost components), making it suitable for deployment in remote healthcare settings, schools, and community health centres.
+\end{enumerate}

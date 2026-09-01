@@ -1,0 +1,95 @@
+% =====================================================================
+% CHAPTER 4: SYSTEM REQUIREMENTS AND SPECIFICATION
+% =====================================================================
+\chapter{System Requirements and Specification}
+
+\section{Hardware Requirements}
+
+\subsection{Microcontroller -- ESP32-CAM}
+The ESP32-CAM will serve as the central processing unit of the smart glasses. It is based on the ESP32-S module, featuring a dual-core Xtensa LX6 processor running at 240 MHz with 520 KB of SRAM and 4 MB of flash memory. The module includes an integrated OV2640 camera capable of capturing images at resolutions up to 1600$\times$1200 pixels. For this project, images will be captured at 640$\times$480 (VGA) resolution to balance image quality with wireless transmission speed. The ESP32-CAM supports IEEE 802.11 b/g/n Wi-Fi and Bluetooth 4.2, enabling wireless communication with the backend server. The module also includes a micro SD card slot for optional local storage of captured images and a built-in LED flash for low-light photography.
+
+\subsection{Display Module -- SSD1306 OLED (0.96 inch, 128$\times$64, I2C)}
+The SSD1306 OLED display is a compact, self-emitting display module with 128$\times$64 pixel resolution and a 0.96-inch diagonal screen size. It will communicate with the ESP32 via the I2C protocol using GPIO 14 (SDA) and GPIO 15 (SCL) pins. Two 4.7k ohm pull-up resistors will be required on the I2C data and clock lines to ensure reliable communication at 400 kHz. The display will be mounted on the glasses frame near the user's field of vision and will show AI-generated text responses. Its low power consumption (typically 20 mA at 3.3V) makes it suitable for battery-powered operation. The OLED technology provides high contrast ratio (10,000:1) and wide viewing angles (up to 160 degrees), ensuring readability in diverse lighting conditions.
+
+\subsection{Microphone -- INMP441 I2S Digital MEMS}
+The INMP441 is a high-precision digital MEMS (Micro-Electro-Mechanical Systems) microphone that will output audio data via the I2S (Inter-IC Sound) protocol. It provides a signal-to-noise ratio of 61 dB and a sensitivity of -26 dBFS, ensuring clear audio capture for speech recognition. The I2S interface provides superior audio quality compared to analog microphones by eliminating analog-to-digital conversion noise at the microphone interface. The microphone will capture the user's voice commands for speech-to-text processing by the Whisper-tiny model. The digital output format (24-bit, up to 48 kHz sampling rate) will ensure high-fidelity audio data for accurate transcription.
+
+\subsection{Camera Module -- OV2640}
+The OV2640 camera module is integrated into the ESP32-CAM board. It is a 2-megapixel CMOS image sensor capable of capturing images in JPEG, RGB565, and YUV422 formats. The camera supports automatic exposure control (AEC), automatic gain control (AGC), and automatic white balance (AWB), enabling consistent image quality across varying lighting conditions. For this project, JPEG format at VGA resolution will be used to minimize the data size (approximately 30--50 KB per frame) for efficient wireless transmission. The camera will interface with the ESP32 through an 8-bit parallel data bus with XCLK (20 MHz external clock), PCLK (pixel clock), VSYNC (vertical sync), and HREF (horizontal reference) timing signals.
+
+\subsection{Audio Output -- Micro Speaker (8 ohm, 0.5W, 40mm)}
+A miniature speaker with 8 ohm impedance and 0.5W power rating will provide audio output for text-to-speech feedback. The speaker's compact 40mm diameter and lightweight construction will make it suitable for integration into the glasses frame. This will allow the user to hear AI-generated responses without needing to look at the OLED display, providing hands-free and eyes-free operation that is particularly beneficial for visually impaired users.
+
+\subsection{Input Controls -- Push Buttons ($\times$2)}
+Two momentary tactile push buttons will provide user input for mode selection and action triggering. Each button will be connected with a 10k ohm pull-up resistor to ensure clean digital signal transitions and prevent floating input states. Software debouncing with a 200ms delay will be implemented in the ESP32 firmware to prevent multiple triggers from a single press. Button 1 will cycle through the five operating modes (Scene, OCR, Voice, Q\&A, Translate), while Button 2 will trigger the active function (capture image or start recording).
+
+\subsection{Power Supply -- LiPo Battery + TP4056 + AMS1117}
+The system will be powered by a 3.7V, 1000 mAh lithium polymer rechargeable battery with a TP4056 USB micro charging module and an AMS1117-3.3V linear voltage regulator. The TP4056 will provide safe lithium battery charging with automatic cutoff at 4.2V and undervoltage protection at 2.5V. The AMS1117 regulator will convert the battery voltage (3.0V--4.2V across the discharge curve) to a stable 3.3V output required by all system components. Two 100nF ceramic decoupling capacitors will be placed near the voltage regulator output and the ESP32 power input pins to filter high-frequency noise and prevent brownout resets during Wi-Fi transmission bursts.
+
+\subsection{Supporting Components}
+Additional components will include resistors (4.7k ohm $\times$2 for I2C pull-ups on SDA and SCL lines, 10k ohm $\times$2 for button pull-ups), ceramic capacitors (100nF $\times$2 for power supply decoupling), a set of jumper wires for interconnections, and a standard glasses frame for mounting all electronic components. The glasses frame will be selected to accommodate the ESP32-CAM module, display, microphone, speaker, buttons, and battery in a comfortable and balanced configuration.
+
+\vspace{0.5cm}
+\noindent The hardware components listed above are readily available from standard electronics suppliers and online marketplaces, making the prototype accessible and reproducible for academic and research purposes.
+
+\section{Software Requirements}
+
+\subsection{Programming Languages}
+\begin{itemize}[leftmargin=1.5cm]
+\item \textbf{Python 3.10+:} Will serve as the primary language for the Flask backend server, AI model integration, Smart Routing logic, memory management, and API client operations. Python's extensive ecosystem of AI/ML libraries (PyTorch, EasyOCR, Whisper) and web frameworks (Flask) makes it the ideal choice for the backend development.
+
+\item \textbf{C/C++ (Arduino Framework):} Will be used for ESP32-CAM firmware development within the Arduino IDE 2.x environment. The firmware will handle camera initialization, Wi-Fi connectivity, HTTP POST request construction, I2C display communication (using Adafruit SSD1306 library), I2S microphone data acquisition, GPIO interrupt handling for buttons, and JSON response parsing.
+\end{itemize}
+
+\subsection{Frameworks and Libraries}
+\begin{itemize}[leftmargin=1.5cm]
+\item \textbf{Flask 3.0+:} A lightweight Python web framework that will implement the Smart Router backend with RESTful API endpoints for each of the five AI capabilities. Flask's minimal overhead and extensibility make it suitable for the single-server deployment model.
+
+\item \textbf{Groq Python SDK (v1.2):} The official client library for accessing the Groq cloud API. It will provide programmatic access to Llama 4 Scout 17B (multimodal vision model for scene description) and Llama 3.3 70B Versatile (language model for question answering, translation, and text generation).
+
+\item \textbf{EasyOCR 1.7+:} An open-source optical character recognition library supporting 80+ languages. It will run locally on the backend server for text extraction from captured images, using a combination of CRAFT text detection and deep learning-based character recognition.
+
+\item \textbf{OpenAI Whisper (tiny model):} An open-source speech recognition model with 39 million parameters and approximately 145 MB memory footprint. It will provide local speech-to-text transcription capability for voice command processing.
+
+\item \textbf{PyTorch 2.0+:} The deep learning framework that will provide the inference runtime environment for both EasyOCR and Whisper models, including CUDA GPU acceleration support and memory management utilities.
+
+\item \textbf{psutil:} A cross-platform system monitoring library that will track RAM, CPU, and GPU usage during operation, enabling the Smart Router to make informed decisions about model loading and unloading.
+
+\item \textbf{python-dotenv:} A library for managing environment variables and API keys securely through \texttt{.env} files, ensuring that sensitive credentials are not hardcoded in the source code.
+\end{itemize}
+
+\subsection{Communication Protocols}
+\begin{itemize}[leftmargin=1.5cm]
+\item \textbf{HTTP/REST:} The ESP32-CAM will communicate with the Flask backend via HTTP POST requests carrying Base64-encoded image or audio data in JSON format. The server will respond with JSON payloads containing the AI-generated text response, processing time, and status information.
+
+\item \textbf{I2C (Inter-Integrated Circuit):} A two-wire serial protocol that will connect the ESP32 to the SSD1306 OLED display at device address 0x3C with 400 kHz clock speed. The I2C bus requires two signal lines: SDA (Serial Data) and SCL (Serial Clock), each with 4.7k ohm pull-up resistors.
+
+\item \textbf{I2S (Inter-IC Sound):} A three-wire digital audio protocol that will connect the INMP441 microphone to the ESP32 for high-quality audio data transfer. The I2S interface uses WS (Word Select), SCK (Serial Clock), and SD (Serial Data) signals.
+
+\item \textbf{Wi-Fi (IEEE 802.11 b/g/n):} The primary wireless networking protocol enabling communication between the ESP32-CAM and the backend server over the local area network. The ESP32 will operate in station (STA) mode, connecting to an existing Wi-Fi access point.
+
+\item \textbf{HTTPS (for Cloud API):} The Groq API communication from the Flask backend will use HTTPS (TLS 1.2+) for secure, encrypted transmission of image data and AI model responses between the local server and the Groq cloud infrastructure.
+\end{itemize}
+
+\section{Power Requirements}
+The system will operate on a 3.7V lithium polymer battery with the following estimated power budget:
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|c|c|}
+\hline
+\textbf{Component} & \textbf{Current Draw} & \textbf{Voltage} \\
+\hline
+ESP32-CAM (active with Wi-Fi) & 160--260 mA & 3.3V \\
+SSD1306 OLED Display & 20 mA & 3.3V \\
+INMP441 Microphone & 1.4 mA & 3.3V \\
+Micro Speaker (during playback) & 60 mA & 3.3V \\
+TP4056 + AMS1117 quiescent & 5 mA & 3.7V \\
+\hline
+\textbf{Total Peak Consumption} & \textbf{$\approx$346 mA} & \textbf{3.3V} \\
+\hline
+\end{tabular}
+\caption{Estimated Power Consumption Budget}
+\end{table}
+
+With a 1000 mAh battery, the system is expected to provide approximately 2.5--3 hours of continuous active use. In practical intermittent usage scenarios (where the system is idle between user commands), battery life is expected to extend to approximately 4--5 hours. The TP4056 module will enable convenient USB micro charging, supporting charge rates up to 1A for a full charge in approximately 1--1.5 hours.

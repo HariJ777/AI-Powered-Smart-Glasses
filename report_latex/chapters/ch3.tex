@@ -1,0 +1,34 @@
+% =====================================================================
+% CHAPTER 3: PROBLEM STATEMENT AND OBJECTIVES
+% =====================================================================
+\chapter{Problem Statement and Objectives}
+
+\section{Problem Statement}
+Visually impaired individuals face significant challenges in understanding and navigating their physical environment. While assistive devices such as white canes and guide dogs provide basic obstacle avoidance, they are fundamentally unable to offer visual understanding capabilities such as reading text from signs, identifying objects in a scene, or answering contextual questions about the surroundings. Modern AI technologies possess these capabilities with remarkable accuracy, but deploying them in a wearable form factor for widespread use presents three critical challenges:
+
+\begin{enumerate}[leftmargin=1.5cm]
+\item \textbf{Cost Barrier to Adoption:} Commercial smart glasses with AI capabilities, such as Google Glass Enterprise Edition and Meta Ray-Ban Smart Glasses, are prohibitively expensive for the majority of users, especially in developing countries like India where the average monthly income is significantly lower than in Western nations. This economic barrier effectively excludes the most vulnerable populations---those who could benefit most from AI-powered visual assistance---from accessing this technology. No affordable alternative currently exists that provides comprehensive AI-based scene understanding, text reading, and conversational interaction through a wearable device.
+
+\item \textbf{Computational Resource Requirements:} State-of-the-art AI vision models such as GPT-4 Vision, LLaVA, and CLIP require powerful GPUs with 12+ GB of dedicated VRAM for local inference. Running these models on a user's personal laptop or any edge computing device without expensive hardware upgrades is impractical. Even smaller, optimized models like MobileNet and EfficientNet, while deployable on edge devices, lack the natural language understanding and generative capabilities needed for scene description and conversational question answering. This computational gap prevents the deployment of truly intelligent visual assistance on consumer hardware.
+
+\item \textbf{Multi-Model Memory Management Complexity:} A comprehensive assistive system requires multiple AI models operating in concert---vision models for scene understanding, language models for question answering and translation, OCR models for text extraction, and speech recognition models for voice input. Running all these models simultaneously would require over 12 GB of combined GPU memory, far exceeding the capacity of most consumer-grade GPUs (4--8 GB). No existing framework or architecture addresses the challenge of running multiple heterogeneous AI models efficiently on resource-constrained hardware through intelligent scheduling and memory lifecycle management.
+\end{enumerate}
+
+There is a clear and urgent need for an affordable smart glasses solution that can deliver advanced, multi-modal AI capabilities using consumer-grade hardware and freely available cloud services, making AI-powered assistive technology accessible to users regardless of their economic background or technical expertise.
+
+\section{Objectives}
+The specific objectives of this project are defined as follows:
+
+\begin{enumerate}[leftmargin=1.5cm]
+\item \textbf{Hardware Prototype Design:} To design and fabricate a wearable smart glasses prototype using the ESP32-CAM microcontroller with OV2640 camera module, SSD1306 OLED display (128$\times$64, I2C), INMP441 I2S digital MEMS microphone, micro speaker (8 ohm, 0.5W), two push buttons for mode selection, and a rechargeable LiPo battery with TP4056 charging module and AMS1117-3.3V voltage regulator. The complete assembly will be mounted on a standard glasses frame for comfortable wearability.
+
+\item \textbf{Hybrid AI Backend Development:} To develop a Flask-based backend server with a Smart Routing architecture that will intelligently distribute AI tasks between cloud-based models (Llama 4 Scout 17B for vision and Llama 3.3 70B Versatile for language processing, accessed via the Groq free-tier API) and locally-running open-source models (EasyOCR for optical character recognition and Whisper-tiny for speech-to-text transcription). The Smart Router will manage model loading, unloading, and memory lifecycle to optimize resource utilization.
+
+\item \textbf{Multi-Modal AI Functionality:} To implement five core AI functionalities within the system: (a) scene description---generating natural language descriptions of captured images; (b) text extraction via OCR---reading printed text from signs, books, documents, and labels; (c) speech-to-text transcription---converting spoken voice commands to text; (d) question answering---providing AI-generated answers to user queries; and (e) language translation---translating text between supported languages.
+
+\item \textbf{Performance Optimization:} To achieve response times under 2 seconds for all AI tasks while maintaining peak GPU memory usage below 600 MB through the Smart Routing memory management strategy. Cloud-based tasks will target sub-second response times, while local tasks will target response times under 2 seconds.
+
+\item \textbf{Comprehensive System Testing:} To validate the system through comprehensive testing across three tiers: (a) AI model accuracy tests to verify correct functionality of each model independently; (b) memory management tests to confirm that the Smart Routing architecture maintains memory usage within target limits; and (c) Flask endpoint integration tests to verify correct HTTP request handling, response formatting, and error management.
+
+\item \textbf{Dual-Output Accessibility:} To provide both text-to-speech audio output through the micro speaker and visual text output through the OLED display for delivering AI responses to the user, ensuring accessibility for users with varying degrees of visual impairment and accommodating different usage contexts (e.g., noisy environments where audio is impractical, or quiet environments where screen reading is preferred).
+\end{enumerate}

@@ -1,0 +1,102 @@
+% CHAPTER 5: PROPOSED METHODOLOGY
+\chapter{Proposed Methodology}
+
+\section{Software Development}
+
+\subsection{Firmware Development (ESP32)}
+The firmware will be developed using the Arduino IDE 2.x with the ESP32 board support package. The development process will follow a modular architecture with separate code modules for sensor acquisition, display management, network communication, and application logic.
+
+\subsubsection*{Sensor Data Acquisition}
+The ESP32 firmware will implement a multi-channel ADC sampling routine to read the analog outputs of the MQ-135 and MQ-3 gas sensors. The sampling process will follow these steps:
+
+\begin{enumerate}[leftmargin=1.5cm]
+\item \textbf{Sensor Warm-Up Phase:} Upon system startup, the firmware will activate the heater circuits of both MQ sensors and wait for a configurable warm-up period (default 3 minutes for subsequent uses after initial 24-hour calibration). The OLED display will show a warm-up progress indicator during this phase. Gas sensor readings taken before the warm-up completes will be discarded as unreliable.
+
+\item \textbf{Environmental Baseline:} The DHT11/DHT22 sensor will be read to establish the current ambient temperature and humidity. These values will be included in the data payload to enable the cloud-based AI model to compensate for environmental effects on gas sensor sensitivity.
+
+\item \textbf{Breath Capture Sequence:} When the user initiates a breath test (via a push button), the firmware will begin a timed sampling window (default 10 seconds). During this window, the ADC will sample both gas sensors at 10 Hz (10 readings per second), producing 100 readings per sensor per breath test. The firmware will compute statistical features from the raw samples including: minimum, maximum, mean, standard deviation, peak-to-baseline ratio, rise time (time from baseline to 80\% of peak), and area under the curve.
+
+\item \textbf{Data Packaging:} The computed features, along with the raw sensor values, environmental readings, and a timestamp, will be packaged into a JSON payload for transmission to the cloud platform.
+\end{enumerate}
+
+\subsubsection*{Network Communication}
+The ESP32 firmware will establish a Wi-Fi connection to the local network using stored SSID and password credentials. Upon successful connection, the firmware will transmit the JSON data payload to the cloud platform using HTTP POST requests. The HTTP client will implement:
+
+\begin{itemize}[leftmargin=1.5cm]
+\item Configurable server URL and API key for ThingSpeak/Firebase authentication
+\item HTTPS support with TLS certificate verification for secure data transmission
+\item Automatic retry logic (up to 3 attempts with exponential backoff) for failed transmissions
+\item Response parsing to extract prediction results returned by the cloud ML model
+\end{itemize}
+
+\subsubsection*{OLED Display Interface}
+The SSD1306 OLED display will be driven via I2C using the Adafruit SSD1306 and Adafruit GFX libraries. The display will operate in four modes:
+
+\begin{itemize}[leftmargin=1.5cm]
+\item \textbf{Warm-Up Mode:} Progress bar showing sensor warm-up completion percentage
+\item \textbf{Ready Mode:} ``Ready'' status with current temperature and humidity readings
+\item \textbf{Sampling Mode:} Real-time gas sensor values with a countdown timer during breath capture
+\item \textbf{Results Mode:} Disease risk predictions with percentage values and risk level indicators (Low/Medium/High)
+\end{itemize}
+
+\subsection{Cloud Backend and AI Pipeline}
+The cloud-based AI pipeline will process the incoming sensor data and generate disease risk predictions through the following stages:
+
+\begin{enumerate}[leftmargin=1.5cm]
+\item \textbf{Data Ingestion:} The cloud platform will receive the JSON payload from the ESP32 via its REST API, validate the data format, and store the readings in a timestamped database record.
+
+\item \textbf{Data Preprocessing:} Raw sensor values will be normalized using min-max scaling or z-score normalization to ensure consistent feature ranges across different sensor units and environmental conditions. Temperature and humidity compensation algorithms will adjust the gas sensor readings based on the environmental data included in the payload.
+
+\item \textbf{Feature Extraction:} The preprocessed data will be transformed into a feature vector suitable for ML classification. Features will include: mean MQ-135 reading, peak MQ-135 reading, standard deviation of MQ-135, mean MQ-3 reading, peak MQ-3 reading, standard deviation of MQ-3, MQ-135/MQ-3 ratio, rise time, decay time, ambient temperature, and ambient humidity---totalling 11 features per breath sample.
+
+\item \textbf{ML Inference:} The feature vector will be fed into pre-trained classification models:
+\begin{itemize}
+\item \textbf{Random Forest Classifier:} An ensemble of 100 decision trees that will vote on the disease risk category. Random Forest is robust against overfitting and handles multi-class classification effectively.
+\item \textbf{Support Vector Machine (SVM):} A kernel-based classifier using the radial basis function (RBF) kernel that will find optimal decision boundaries in the 11-dimensional feature space.
+\item \textbf{Neural Network:} A multi-layer perceptron with two hidden layers (64 and 32 neurons) using ReLU activation functions and softmax output for multi-class probability estimation.
+\end{itemize}
+The final prediction will be determined by majority voting across the three classifiers, with the probability outputs averaged to generate confidence-weighted risk percentages.
+
+\item \textbf{Result Delivery:} The prediction results will be formatted as a JSON response containing disease risk percentages for each target condition (asthma, respiratory infection, diabetes), an overall health risk level (Low/Medium/High), and recommendations. This response will be sent back to the ESP32 for OLED display and simultaneously stored in the database for the mobile/web application to access.
+\end{enumerate}
+
+\section{Data Flow Pipeline}
+The data flow through the RespiraTech system will follow a five-stage pipeline:
+
+\begin{enumerate}[leftmargin=1.5cm]
+\item \textbf{Stage 1 --- Capture:} The user will exhale into the breath collection chamber containing the MQ-135 and MQ-3 sensors. The ESP32 ADC will sample both sensors at 10 Hz for 10 seconds, producing 200 raw data points (100 per sensor). The DHT sensor will provide a single temperature and humidity reading.
+
+\item \textbf{Stage 2 --- Process Locally:} The ESP32 firmware will compute 11 statistical features from the raw samples (means, peaks, standard deviations, ratios, timing features) and package them with environmental data and a timestamp into a JSON payload of approximately 500--800 bytes.
+
+\item \textbf{Stage 3 --- Transmit:} The JSON payload will be transmitted via Wi-Fi to the cloud platform using an HTTP POST request with API key authentication. Transmission time over a standard Wi-Fi connection is expected to be under 1 second.
+
+\item \textbf{Stage 4 --- AI Prediction:} The cloud platform will preprocess the data, run it through three ML classifiers (Random Forest, SVM, Neural Network), aggregate the predictions via majority voting, and compute disease risk percentages. Cloud processing time is expected to be 1--3 seconds.
+
+\item \textbf{Stage 5 --- Display and Alert:} The prediction results will be returned to the ESP32 for OLED display and simultaneously pushed to the mobile/web application. If any disease risk exceeds a configurable threshold (default 60\%), an automated alert notification will be generated.
+\end{enumerate}
+
+\section{Testing Plan}
+The testing strategy will employ a three-tier approach:
+
+\subsection{Tier 1: Sensor Calibration Tests}
+\begin{itemize}[leftmargin=1.5cm]
+\item MQ-135 and MQ-3 sensors will be tested with known gas concentrations (using calibration gases or controlled alcohol vapour samples) to verify sensor response linearity and establish calibration curves.
+\item DHT sensor readings will be validated against a reference thermometer and hygrometer.
+\item ADC sampling accuracy will be verified by measuring known reference voltages.
+\end{itemize}
+
+\subsection{Tier 2: Machine Learning Model Tests}
+\begin{itemize}[leftmargin=1.5cm]
+\item Models will be evaluated using k-fold cross-validation (k=5) on the training dataset.
+\item Classification metrics (accuracy, precision, recall, F1-score) will be computed for each disease category.
+\item Target: overall classification accuracy above 80\% across all disease categories.
+\item Confusion matrices will be generated to identify misclassification patterns.
+\end{itemize}
+
+\subsection{Tier 3: End-to-End Integration Tests}
+\begin{itemize}[leftmargin=1.5cm]
+\item Complete breath-to-prediction pipeline will be tested with controlled breath samples.
+\item Wi-Fi data transmission reliability will be verified across 100 consecutive transmissions.
+\item Mobile/web application will be tested for correct display of predictions and alert generation.
+\item Response time will be measured from breath capture initiation to result display on OLED.
+\end{itemize}
