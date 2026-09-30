@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "author": "AI Smart Glasses Team",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "id": "esp",
+      "type": "board-esp32-devkit-c-v4",
+      "left": 0,
+      "top": 0,
+      "attrs": {}
+    },
+    {
+      "id": "oled",
+      "type": "board-ssd1306",
+      "left": -200,
+      "top": -30,
+      "attrs": { "i2cAddress": "0x3c" }
+    },
+    {
+      "id": "btn_mode",
+      "type": "wokwi-pushbutton",
+      "left": 230,
+      "top": -50,
+      "attrs": { "color": "green", "label": "MODE (BTN1)" }
+    },
+    {
+      "id": "btn_action",
+      "type": "wokwi-pushbutton",
+      "left": 230,
+      "top": 30,
+      "attrs": { "color": "red", "label": "ACTION (BTN2)" }
+    },
+    {
+      "id": "led_status",
+      "type": "wokwi-led",
+      "left": 310,
+      "top": 130,
+      "attrs": { "color": "green", "label": "Status" }
+    },
+    {
+      "id": "r_led",
+      "type": "wokwi-resistor",
+      "left": 270,
+      "top": 150,
+      "attrs": { "value": "220" }
+    },
+    {
+      "id": "label_title",
+      "type": "wokwi-text",
+      "left": -200,
+      "top": -80,
+      "attrs": { "text": "AI Smart Glasses — Wokwi Simulation" }
+    },
+    {
+      "id": "label_oled",
+      "type": "wokwi-text",
+      "left": -200,
+      "top": 90,
+      "attrs": { "text": "OLED Display (I2C: SDA=21, SCL=22)" }
+    },
+    {
+      "id": "label_btn",
+      "type": "wokwi-text",
+      "left": 200,
+      "top": -80,
+      "attrs": { "text": "Buttons (Mode + Action)" }
+    }
+  ],
+  "connections": [
+    ["oled:GND", "esp:GND.2", "black", ["v10", "h20"]],
+    ["oled:VCC", "esp:3V3", "red", ["v20", "h30"]],
+    ["oled:SCL", "esp:22", "gold", ["v30", "h40"]],
+    ["oled:SDA", "esp:21", "blue", ["v40", "h50"]],
+
+    ["btn_mode:1.l", "esp:4", "green", ["v0"]],
+    ["btn_mode:2.l", "esp:GND.1", "black", ["v0"]],
+
+    ["btn_action:1.l", "esp:15", "orange", ["v0"]],
+    ["btn_action:2.l", "esp:GND.1", "black", ["v0"]],
+
+    ["esp:2", "r_led:1", "green", ["v0"]],
+    ["r_led:2", "led_status:A", "green", ["v0"]],
+    ["led_status:C", "esp:GND.1", "black", ["v0"]]
+  ],
+  "serialMonitor": {
+    "display": "auto",
+    "newline": "lf"
+  }
+}

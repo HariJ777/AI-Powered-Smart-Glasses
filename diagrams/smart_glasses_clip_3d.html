@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Model Viewer — AI Smart Glasses Holding Clip</title>
+    <style>
+        body { margin: 0; background-color: #1a1a24; font-family: Arial, sans-serif; overflow: hidden; }
+        #info {
+            position: absolute; top: 15px; left: 15px; color: #ffffff;
+            background: rgba(0, 0, 0, 0.7); padding: 15px 20px; border-radius: 8px;
+            max-width: 320px; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        h2 { margin: 0 0 10px 0; font-size: 18px; color: #00d2d3; }
+        p { margin: 5px 0; font-size: 13px; color: #c8d6e5; }
+        .legend-item { display: flex; align-items: center; margin-top: 6px; font-size: 12px; }
+        .color-box { width: 14px; height: 14px; margin-right: 8px; border-radius: 3px; }
+    </style>
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="info">
+        <h2>🕶️ Smart Glasses Clip (3D)</h2>
+        <p><b>Drag/Orbit:</b> Left Click + Drag</p>
+        <p><b>Zoom:</b> Mouse Scroll</p>
+        <hr style="border: 0.5px solid #576574; margin: 10px 0;">
+        <div class="legend-item"><div class="color-box" style="background: #34495e;"></div> Main Enclosure Shell (54×32×18mm)</div>
+        <div class="legend-item"><div class="color-box" style="background: #e74c3c;"></div> Camera Lens Aperture (9mm)</div>
+        <div class="legend-item"><div class="color-box" style="background: #3498db;"></div> OLED Viewport (26×14mm)</div>
+        <div class="legend-item"><div class="color-box" style="background: #9b59b6;"></div> Glasses Temple Snap C-Clip</div>
+        <div class="legend-item"><div class="color-box" style="background: #2ecc71;"></div> ESP32-CAM Board (Internal)</div>
+        <div class="legend-item"><div class="color-box" style="background: #e67e22;"></div> USB-C Charger Port</div>
+    </div>
+
+    <script>
+        // Setup Scene, Camera, Renderer
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a24);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(80, 50, 90);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(50, 100, 50);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        const gridHelper = new THREE.GridHelper(200, 20, 0x485460, 0x2d3436);
+        scene.add(gridHelper);
+
+        // Group for Enclosure
+        const enclosureGroup = new THREE.Group();
+
+        // 1. Main Housing Box (Semi-transparent Shell)
+        const boxGeo = new THREE.BoxGeometry(54, 18, 32);
+        const boxMat = new THREE.MeshPhongMaterial({ color: 0x34495e, transparent: true, opacity: 0.75, wireframe: false });
+        const boxMesh = new THREE.Mesh(boxGeo, boxMat);
+        boxMesh.position.set(0, 9, 0);
+        enclosureGroup.add(boxMesh);
+
+        // 2. Glasses C-Clip Bracket (Inner Back)
+        const clipGeo = new THREE.BoxGeometry(46, 14, 8);
+        const clipMat = new THREE.MeshPhongMaterial({ color: 0x9b59b6 });
+        const clipMesh = new THREE.Mesh(clipGeo, clipMat);
+        clipMesh.position.set(0, 9, 18);
+        enclosureGroup.add(clipMesh);
+
+        // 3. Camera Lens Cutout (Front)
+        const camGeo = new THREE.CylinderGeometry(4.5, 4.5, 4, 32);
+        const camMat = new THREE.MeshPhongMaterial({ color: 0xe74c3c });
+        const camMesh = new THREE.Mesh(camGeo, camMat);
+        camMesh.rotation.z = Math.PI / 2;
+        camMesh.position.set(-27, 9, 0);
+        enclosureGroup.add(camMesh);
+
+        // 4. OLED Display Window (Top)
+        const oledGeo = new THREE.BoxGeometry(26, 2, 14);
+        const oledMat = new THREE.MeshPhongMaterial({ color: 0x3498db });
+        const oledMesh = new THREE.Mesh(oledGeo, oledMat);
+        oledMesh.position.set(-5, 18, -4);
+        enclosureGroup.add(oledMesh);
+
+        // 5. Internal ESP32-CAM PCB Board
+        const pcbGeo = new THREE.BoxGeometry(40, 4, 26);
+        const pcbMat = new THREE.MeshPhongMaterial({ color: 0x2ecc71 });
+        const pcbMesh = new THREE.Mesh(pcbGeo, pcbMat);
+        pcbMesh.position.set(-2, 6, 0);
+        enclosureGroup.add(pcbMesh);
+
+        // 6. USB Charger Slot (Rear)
+        const usbGeo = new THREE.BoxGeometry(4, 6, 10);
+        const usbMat = new THREE.MeshPhongMaterial({ color: 0xe67e22 });
+        const usbMesh = new THREE.Mesh(usbGeo, usbMat);
+        usbMesh.position.set(27, 5, 0);
+        enclosureGroup.add(usbMesh);
+
+        scene.add(enclosureGroup);
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 groq_client = Groq(api_key=config.GROQ_API_KEY)
 ocr_reader = None  # Lazy loaded
 
-# Current Groq vision model (supports multimodal image+text)
-VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+# Current local vision model (Ollama)
+VISION_MODEL = "llava"
 
 
 def get_ocr_reader():
@@ -32,9 +32,9 @@ def get_ocr_reader():
     return ocr_reader
 
 
-def analyze_image_with_llava(image_base64: str, prompt: str = "What do you see in this image?") -> dict:
+def analyze_image_with_llava(image_base64: str, prompt: str = "What do you see in this image? Please describe it briefly.") -> dict:
     """
-    Analyze image using Llama 4 Scout (multimodal) via Groq API
+    Analyze image using local Ollama (Llava model)
     
     Args:
         image_base64: Base64 encoded image
@@ -43,48 +43,40 @@ def analyze_image_with_llava(image_base64: str, prompt: str = "What do you see i
     Returns:
         dict with analysis result
     """
-    logger.info(f"Calling {VISION_MODEL} via Groq API for image analysis...")
+    logger.info(f"Calling local Ollama with {VISION_MODEL} for image analysis...")
     
     try:
-        # Groq SDK v1.2 uses OpenAI-compatible chat.completions.create
-        response = groq_client.chat.completions.create(
-            model=VISION_MODEL,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{image_base64}",
-                            },
-                        },
-                        {
-                            "type": "text",
-                            "text": prompt
-                        }
-                    ],
-                }
-            ],
-            max_tokens=1024,
-        )
+        import requests
         
-        result = response.choices[0].message.content
-        logger.info(f"Vision analysis complete: {result[:100]}...")
-        
-        return {
-            "status": "success",
+        payload = {
             "model": VISION_MODEL,
-            "analysis": result,
-            "source": "groq_api"
+            "prompt": prompt,
+            "images": [image_base64],
+            "stream": False
         }
+        
+        response = requests.post("http://localhost:11434/api/generate", json=payload, timeout=180)
+        
+        if response.status_code == 200:
+            result = response.json().get("response", "")
+            logger.info(f"Vision analysis complete: {result[:100]}...")
+            
+            return {
+                "status": "success",
+                "model": VISION_MODEL,
+                "result": result,
+                "source": "ollama_local"
+            }
+        else:
+            raise Exception(f"Ollama API returned {response.status_code}: {response.text}")
+            
     except Exception as e:
         logger.error(f"Vision API error: {str(e)}")
         return {
             "status": "error",
             "model": VISION_MODEL,
             "error": str(e),
-            "source": "groq_api"
+            "source": "ollama_local"
         }
 
 
