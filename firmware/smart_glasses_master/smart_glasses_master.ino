@@ -5,9 +5,26 @@
  *  Hardware Connections:
  *    - OLED:          SDA -> GPIO 13 | SCL/SCK -> GPIO 14 (3.3V power only)
  *    - Smart Button:  GPIO 15 <-> GND (No resistors needed!)
- *                     - Short Press (< 1 sec)  = Take Photo & Ask AI
- *                     - Long Press  (> 1.2 sec) = Switch Mode (DESCRIBE <-> OCR)
+ *                     - Short Press (< 1.2 sec) = Take Photo & Ask AI
+ *                     - Long Press  (>= 1.2 sec) = Switch Mode (VISION -> OCR -> TRANSLATE)
  *    - Camera:        AI-Thinker OV2640 (Built-in)
+ *    - Speaker (MAX98357A I2S Amplifier):
+ *        LRC  (Word Select / WS)  -> GPIO 2
+ *        BCLK (Bit Clock)         -> GPIO 4
+ *        DIN  (Data In)           -> GPIO 12
+ *        GND  -> GND
+ *        VIN  -> 5V (or 3.3V for lower volume)
+ *        SD   -> leave unconnected (always-on mode)
+ *
+ *  What the speaker does:
+ *    - Plays a startup beep on boot
+ *    - Plays a capture click when photo is taken
+ *    - Plays a short tone when the mode changes
+ *    - Beeps on HTTP error so you know something went wrong
+ *
+ *  Note: The Flask server handles full TTS speech synthesis in the browser.
+ *        The ESP32 speaker provides local audio feedback (beeps/tones only)
+ *        since streaming TTS audio over WiFi adds too much latency.
  * =========================================================================
  */
 
@@ -20,6 +37,7 @@
 #include <ArduinoJson.h>
 #include "esp_camera.h"
 #include "mbedtls/base64.h"
+#include "driver/i2s.h"   // ESP32 I2S driver for MAX98357A speaker
 
 // ─────────────────────────────────────────────────────────
 // ⚙️ EDIT YOUR WIFI DETAILS HERE
@@ -40,6 +58,11 @@ Adafruit_SSD1306 display(128, 64, &Wire, -1);
 
 // Single Multifunction Button
 #define PIN_BUTTON      15    // GPIO 15 to one leg, GND to the other!
+
+// MAX98357A I2S Speaker Pins
+#define I2S_LRC_PIN      2   // Word Select (WS / LRCK)
+#define I2S_BCLK_PIN     4   // Bit Clock
+#define I2S_DOUT_PIN    12   // Data Out from ESP32 to amplifier DIN
 
 // Camera pins (AI-Thinker OV2640)
 #define PWDN_GPIO_NUM   32
@@ -81,7 +104,94 @@ String serverBase = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT);
 unsigned long btnPressStart   = 0;
 bool isButtonPressed          = false;
 bool longPressTriggered       = false;
-const unsigned long LONG_PRESS_MS = 1200; // Hold for 1.2s to change mode
+const unsigned long LONG_PRESS_MS = 1200;
+
+// ─────────────────────────────────────────────────────────
+// I2S Speaker — MAX98357A Setup & Tone Generator
+// ─────────────────────────────────────────────────────────
+
+// Sample rate and I2S port
+#define SPEAKER_SAMPLE_RATE  16000
+#define SPEAKER_I2S_PORT     I2S_NUM_0
+
+void initSpeaker() {
+  i2s_config_t i2s_config = {
+    .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
+    .sample_rate          = SPEAKER_SAMPLE_RATE,
+    .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
+    .channel_format       = I2S_CHANNEL_FMT_ONLY_RIGHT, // Mono (MAX98357A is mono)
+    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+    .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
+    .dma_buf_count        = 4,
+    .dma_buf_len          = 256,
+    .use_apll             = false,
+    .tx_desc_auto_clear   = true
+  };
+  i2s_driver_install(SPEAKER_I2S_PORT, &i2s_config, 0, NULL);
+
+  i2s_pin_config_t pin_config = {
+    .bck_io_num   = I2S_BCLK_PIN,
+    .ws_io_num    = I2S_LRC_PIN,
+    .data_out_num = I2S_DOUT_PIN,
+    .data_in_num  = I2S_PIN_NO_CHANGE
+  };
+  i2s_set_pin(SPEAKER_I2S_PORT, &pin_config);
+  i2s_zero_dma_buffer(SPEAKER_I2S_PORT);
+}
+
+// Generate a simple sine-wave tone for `durationMs` milliseconds at `freqHz`
+void speakerTone(int freqHz, int durationMs, int volume = 3000) {
+  int samples     = SPEAKER_SAMPLE_RATE * durationMs / 1000;
+  int16_t* buffer = (int16_t*)malloc(samples * sizeof(int16_t));
+  if (!buffer) return;
+
+  for (int i = 0; i < samples; i++) {
+    // Sine wave sample with fade-in/out envelope to avoid clicks
+    float t = (float)i / SPEAKER_SAMPLE_RATE;
+    float envelope = 1.0f;
+    int fadeLen = samples / 8;                     // 12.5% fade each side
+    if (i < fadeLen)         envelope = (float)i / fadeLen;
+    else if (i > samples - fadeLen) envelope = (float)(samples - i) / fadeLen;
+    buffer[i] = (int16_t)(sin(2.0f * PI * freqHz * t) * volume * envelope);
+  }
+
+  size_t bytesWritten = 0;
+  i2s_write(SPEAKER_I2S_PORT, buffer, samples * sizeof(int16_t), &bytesWritten, portMAX_DELAY);
+  free(buffer);
+  delay(20); // Small gap so tones don't blur together
+}
+
+// ── Named sound effects ──
+
+// Startup: ascending 3-note chime (boot success)
+void soundStartup() {
+  speakerTone(440, 120, 2500);  // A4
+  speakerTone(523, 120, 2500);  // C5
+  speakerTone(659, 180, 3000);  // E5
+}
+
+// Capture click: short high beep (photo taken)
+void soundCapture() {
+  speakerTone(1200, 80, 2000);
+}
+
+// Mode change: two-tone blip
+void soundModeChange() {
+  speakerTone(880, 80, 2000);
+  speakerTone(660, 80, 2000);
+}
+
+// Success: short rising beep (result received)
+void soundSuccess() {
+  speakerTone(523, 100, 2000);
+  speakerTone(784, 150, 2500);
+}
+
+// Error: low descending double beep
+void soundError() {
+  speakerTone(300, 200, 3000);
+  speakerTone(220, 200, 3000);
+}
 
 // ─────────────────────────────────────────────────────────
 // OLED Display Helpers
@@ -94,7 +204,6 @@ void oledClear() {
 
 void oledHome() {
   oledClear();
-  // High-tech Header bar
   display.fillRect(0, 0, 128, 12, SSD1306_WHITE);
   display.setTextColor(SSD1306_BLACK);
   display.setCursor(6, 2);
@@ -109,7 +218,7 @@ void oledHome() {
   display.print("MODE:   ");
   if (currentMode == MODE_DESCRIBE)      display.print("NEURAL VISION");
   else if (currentMode == MODE_OCR)     display.print("TEXT OCR");
-  else                                  display.print("TRANSLATE 🌐");
+  else                                  display.print("TRANSLATE");
 
   display.setCursor(0, 42);
   display.print("INPUT:  [TAP BUTTON]");
@@ -132,7 +241,6 @@ void oledStatus(String title, String msg) {
   display.setCursor(0, 20);
   display.println(msg);
   
-  // High-tech bottom scan bar
   display.drawRect(0, 53, 128, 8, SSD1306_WHITE);
   display.fillRect(2, 55, 80, 4, SSD1306_WHITE);
   display.display();
@@ -204,9 +312,7 @@ bool initCamera() {
 }
 
 String captureBase64() {
-  // ── FIX STALE BUFFER LAG: Flush old DMA frame(s) sitting in queue ──
-  // The OV2640 hardware DMA constantly buffers frames while idle.
-  // We discard stale frames so we capture the true live scene NOW!
+  // Flush stale DMA buffer frames so we capture the true live scene NOW
   for (int i = 0; i < 2; i++) {
     camera_fb_t* oldFb = esp_camera_fb_get();
     if (oldFb) {
@@ -215,7 +321,6 @@ String captureBase64() {
     }
   }
 
-  // Capture the brand-new, fresh frame
   camera_fb_t* fb = esp_camera_fb_get();
   if (!fb) return "";
   
@@ -235,11 +340,13 @@ String captureBase64() {
 // AI Processing Pipeline
 // ─────────────────────────────────────────────────────────
 void runAIPipeline(String type) {
-  oledStatus("OPTICAL SCAN", "📸 Capturing frame...");
+  oledStatus("OPTICAL SCAN", "Capturing frame...");
+  soundCapture();  // Click sound when photo is taken
   
   String b64 = captureBase64();
   if (b64.isEmpty()) {
     oledStatus("SYSTEM ERROR", "Camera frame error!");
+    soundError();
     delay(1500);
     oledHome();
     return;
@@ -250,7 +357,7 @@ void runAIPipeline(String type) {
   if (type == "ocr") modeName = "TEXT OCR";
   else if (type == "translate") modeName = "TRANSLATE";
 
-  oledStatus("NEURAL CORE", (type == "translate") ? "🌐 Translating..." : "⚡ Analyzing scene...");
+  oledStatus("NEURAL CORE", (type == "translate") ? "Translating..." : "Analyzing scene...");
 
   DynamicJsonDocument doc(b64.length() + 200);
   doc["image_base64"]  = b64;
@@ -261,7 +368,7 @@ void runAIPipeline(String type) {
   HTTPClient http;
   http.begin(serverBase + "/analyze-image");
   http.addHeader("Content-Type", "application/json");
-  http.setTimeout(25000); // 25 second timeout for AI cloud inference & network transfer
+  http.setTimeout(25000); // 25s timeout for AI cloud inference
 
   unsigned long t0 = millis();
   int httpCode = http.POST(payload);
@@ -281,9 +388,11 @@ void runAIPipeline(String type) {
     }
     lastResult.trim();
     oledShowResult(modeName, lastResult, lastRespTime);
+    soundSuccess();  // Rising beep = result arrived!
   } else {
     lastResult = "HTTP Error: " + String(httpCode);
     oledStatus("SERVER ERROR", lastResult);
+    soundError();    // Descending beep = something went wrong
   }
   http.end();
 }
@@ -318,8 +427,8 @@ h1{color:#58a6ff;font-size:20px}
 <button class="btn btn-desc" onclick="fetch('/action?type=description')">📷 SCENE VISION</button>
 <button class="btn btn-ocr" onclick="fetch('/action?type=ocr')">🔤 READ TEXT (OCR)</button>
 <button class="btn btn-trans" onclick="fetch('/action?type=translate')">🌐 TRANSLATE TEXT</button>
-<a href="http://10.111.103.51:5000" target="_blank" style="text-decoration:none;">
-  <button class="btn btn-hud">⚡ OPEN FULL CORTEX HUD</button>
+<a href="http://10.111.103.214:5000" target="_blank" style="text-decoration:none;">
+  <button class="btn btn-hud">⚡ OPEN FULL HUD</button>
 </a>
 <div class="box"><b>Latest Result:</b><p id="r">)rawliteral" + safeResult + R"rawliteral(</p></div>
 <script>
@@ -365,6 +474,9 @@ void setup() {
   // Smart Button on GPIO 15 (Internal pull-up enabled!)
   pinMode(PIN_BUTTON, INPUT_PULLUP);
 
+  // I2S Speaker (MAX98357A)
+  initSpeaker();
+
   // OLED Init (GPIO 13 SDA, GPIO 14 SCL)
   Wire.begin(PIN_SDA, PIN_SCL);
   if (display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
@@ -378,11 +490,12 @@ void setup() {
   // Camera Init (OV2640 built-in)
   if (!initCamera()) {
     oledStatus("ERROR", "Camera Init FAILED!");
+    soundError();
     while (true) delay(1000);
   }
 
   // WiFi Connection
-  oledStatus("WIFI", "Connecting to WiFi...");
+  oledStatus("WIFI", "Connecting...");
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 30) {
@@ -396,8 +509,10 @@ void setup() {
     webServer.on("/status", handleStatus);
     webServer.begin();
     oledHome();
+    soundStartup();  // 3-note ascending chime = all systems ready!
   } else {
     oledStatus("WIFI ERROR", "Could not connect!");
+    soundError();
   }
 }
 
@@ -433,9 +548,10 @@ void loop() {
           else                                  currentMode = MODE_DESCRIBE;
           
           String newMode = (currentMode == MODE_DESCRIBE) ? "NEURAL VISION" :
-                           (currentMode == MODE_OCR) ? "TEXT OCR" : "TRANSLATE 🌐";
+                           (currentMode == MODE_OCR) ? "TEXT OCR" : "TRANSLATE";
           Serial.println("[BUTTON] Mode switched to: " + newMode);
           oledStatus("MODE CHANGED", "Active: " + newMode);
+          soundModeChange();  // Two-tone blip = mode switched!
           delay(1000);
           oledHome();
         }
@@ -457,4 +573,3 @@ void loop() {
 
   delay(10);
 }
-
