@@ -15,8 +15,23 @@ logger = logging.getLogger(__name__)
 groq_client = Groq(api_key=config.GROQ_API_KEY)
 ocr_reader = None  # Lazy loaded
 
-# Current local vision model (Ollama)
-VISION_MODEL = "llava"
+# Current vision model and fallback pool with independent quota allocations
+VISION_MODELS = [
+    "gemini-3.5-flash-lite",     # Most reliable, fast, zero deadline errors
+    "gemini-flash-lite-latest",
+    "gemini-3.1-flash-lite",
+    "gemini-flash-latest",
+    "gemini-3.8-flash",
+    "gemini-3.5-flash"
+]
+VISION_MODEL = VISION_MODELS[0]
+
+# Configure Gemini API keys (supports comma-separated list of keys for multi-key rotation)
+raw_keys = getattr(config, 'GEMINI_API_KEY', '') or ''
+GEMINI_API_KEYS = [k.strip() for k in raw_keys.split(',') if k.strip()]
+if GEMINI_API_KEYS:
+    import google.generativeai as genai
+    genai.configure(api_key=GEMINI_API_KEYS[0])
 
 
 def get_ocr_reader():
@@ -32,9 +47,9 @@ def get_ocr_reader():
     return ocr_reader
 
 
-def analyze_image_with_llava(image_base64: str, prompt: str = "What do you see in this image? Please describe it briefly.") -> dict:
+def analyze_image_with_gemini(image_base64: str, prompt: str = "Describe what you see in maximum 12 words. Be direct and concise. Do not use filler like 'The image shows'.") -> dict:
     """
-    Analyze image using local Ollama (Llava model)
+    Analyze image using Google Gemini API with automatic multi-model and multi-key fallback
     
     Args:
         image_base64: Base64 encoded image
@@ -43,41 +58,65 @@ def analyze_image_with_llava(image_base64: str, prompt: str = "What do you see i
     Returns:
         dict with analysis result
     """
-    logger.info(f"Calling local Ollama with {VISION_MODEL} for image analysis...")
-    
     try:
-        import requests
+        import google.generativeai as genai
         
-        payload = {
-            "model": VISION_MODEL,
-            "prompt": prompt,
-            "images": [image_base64],
-            "stream": False
-        }
+        # Decode base64 to image for Gemini
+        image_data = base64.b64decode(image_base64)
+        image = Image.open(io.BytesIO(image_data))
         
-        response = requests.post("http://localhost:11434/api/generate", json=payload, timeout=180)
+        last_error = "No API keys configured"
+        keys_to_try = GEMINI_API_KEYS if GEMINI_API_KEYS else [getattr(config, 'GEMINI_API_KEY', '')]
         
-        if response.status_code == 200:
-            result = response.json().get("response", "")
-            logger.info(f"Vision analysis complete: {result[:100]}...")
+        for key_idx, current_key in enumerate(keys_to_try):
+            if not current_key:
+                continue
+            genai.configure(api_key=current_key)
             
-            return {
-                "status": "success",
-                "model": VISION_MODEL,
-                "result": result,
-                "source": "ollama_local"
-            }
-        else:
-            raise Exception(f"Ollama API returned {response.status_code}: {response.text}")
-            
-    except Exception as e:
-        logger.error(f"Vision API error: {str(e)}")
+            # Iterate through models with separate quota pools
+            for model_name in VISION_MODELS:
+                try:
+                    logger.info(f"Analyzing vision with model {model_name} (key #{key_idx + 1})...")
+                    model = genai.GenerativeModel(model_name)
+                    # 6 second fail-safe timeout per model for snappy responses
+                    response = model.generate_content([prompt, image], request_options={"timeout": 6})
+                    
+                    result = response.text.strip()
+                    logger.info(f"Vision analysis complete ({model_name}): {result[:100]}...")
+                    
+                    return {
+                        "status": "success",
+                        "model": model_name,
+                        "result": result,
+                        "source": "gemini_api"
+                    }
+                except Exception as model_err:
+                    err_msg = str(model_err)
+                    last_error = err_msg
+                    if "429" in err_msg or "ResourceExhausted" in err_msg or "Quota" in err_msg or "quota" in err_msg:
+                        logger.warning(f"Quota 429 on {model_name}. Auto-falling back to next model...")
+                    else:
+                        logger.warning(f"Model {model_name} issue: {err_msg[:80]}. Falling back...")
+                    continue
+        
+        # If all fallbacks exhausted
+        logger.error(f"All vision models exhausted. Last error: {last_error}")
         return {
             "status": "error",
-            "model": VISION_MODEL,
-            "error": str(e),
-            "source": "ollama_local"
+            "model": "all_fallbacks_exhausted",
+            "error": last_error,
+            "source": "gemini_api"
         }
+            
+    except Exception as e:
+        logger.error(f"Vision API fatal error: {str(e)}")
+        return {
+            "status": "error",
+            "model": VISION_MODELS[0],
+            "error": str(e),
+            "source": "gemini_api"
+        }
+
 
 
 def extract_text_with_easyocr(image_base64: str) -> dict:

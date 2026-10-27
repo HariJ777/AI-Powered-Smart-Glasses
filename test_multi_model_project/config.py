@@ -4,8 +4,9 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Groq API Configuration
+# API Configuration
 GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 
 # Model Configuration
 WHISPER_MODEL = os.getenv('WHISPER_MODEL', 'tiny')  # tiny, base, small, medium, large
