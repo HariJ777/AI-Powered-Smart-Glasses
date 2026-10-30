@@ -37,6 +37,8 @@
 #include <ArduinoJson.h>
 #include "esp_camera.h"
 #include "mbedtls/base64.h"
+#include "soc/soc.h"             // Brownout protection control
+#include "soc/rtc_cntl_reg.h"    // Brownout register
 
 // ─────────────────────────────────────────────────────────
 // ⚙️ EDIT YOUR WIFI DETAILS HERE
@@ -385,7 +387,12 @@ void handleStatus() {
 // SETUP
 // ─────────────────────────────────────────────────────────
 void setup() {
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // Disable brownout detector to prevent voltage drop resets
   Serial.begin(115200);
+  delay(200);
+  Serial.println("\n\n========================================");
+  Serial.println(">>> AI SMART GLASSES BOOT SEQUENCE <<<");
+  Serial.println("========================================");
 
   // Smart Button on GPIO 15 (Internal pull-up enabled!)
   pinMode(PIN_BUTTON, INPUT_PULLUP);
@@ -434,6 +441,8 @@ void setup() {
 
   // WiFi Connection
   oledStatus("WIFI", "Connecting...");
+  WiFi.mode(WIFI_STA);
+  WiFi.setTxPower(WIFI_POWER_15dBm); // Reduce Wi-Fi current spikes on FTDI/USB power
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 30) {
