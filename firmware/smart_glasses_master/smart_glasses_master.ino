@@ -37,7 +37,6 @@
 #include <ArduinoJson.h>
 #include "esp_camera.h"
 #include "mbedtls/base64.h"
-#include "driver/i2s.h"   // ESP32 I2S driver for MAX98357A speaker
 
 // ─────────────────────────────────────────────────────────
 // ⚙️ EDIT YOUR WIFI DETAILS HERE
@@ -46,10 +45,6 @@
 #define WIFI_PASSWORD   "012345678"    // <-- Replace with your WiFi Password
 #define SERVER_IP       "10.111.103.51" // Your PC's active IP address
 #define SERVER_PORT     5000
-
-// Set to 1 ONLY if you have wired the MAX98357A I2S amplifier and micro speaker.
-// Default 0 prevents reboot loops and pin conflicts on GPIO 4 (Flashlight) and GPIO 12.
-#define ENABLE_SPEAKER  0
 
 // ─────────────────────────────────────────────────────────
 // Pin Definitions
@@ -62,11 +57,6 @@ Adafruit_SSD1306 display(128, 64, &Wire, -1);
 
 // Single Multifunction Button
 #define PIN_BUTTON      15    // GPIO 15 to one leg, GND to the other!
-
-// MAX98357A I2S Speaker Pins
-#define I2S_LRC_PIN      2   // Word Select (WS / LRCK)
-#define I2S_BCLK_PIN     4   // Bit Clock
-#define I2S_DOUT_PIN    12   // Data Out from ESP32 to amplifier DIN
 
 // Camera pins (AI-Thinker OV2640)
 #define PWDN_GPIO_NUM   32
@@ -111,121 +101,13 @@ bool longPressTriggered       = false;
 const unsigned long LONG_PRESS_MS = 1200;
 
 // ─────────────────────────────────────────────────────────
-// I2S Speaker — MAX98357A Setup & Tone Generator
+// Audio Feedback (Disabled to guarantee 100% board stability)
 // ─────────────────────────────────────────────────────────
-
-// Sample rate and I2S port (I2S_NUM_1 avoids colliding with the camera DMA on I2S_NUM_0)
-#define SPEAKER_SAMPLE_RATE  16000
-#define SPEAKER_I2S_PORT     I2S_NUM_1
-
-void startSpeaker() {
-  if (!ENABLE_SPEAKER) return;
-  i2s_config_t i2s_config = {
-    .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
-    .sample_rate          = SPEAKER_SAMPLE_RATE,
-    .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
-    .channel_format       = I2S_CHANNEL_FMT_ONLY_RIGHT, // Mono (MAX98357A is mono)
-    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-    .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
-    .dma_buf_count        = 4,
-    .dma_buf_len          = 256,
-    .use_apll             = false,
-    .tx_desc_auto_clear   = true
-  };
-  i2s_driver_install(SPEAKER_I2S_PORT, &i2s_config, 0, NULL);
-
-  i2s_pin_config_t pin_config = {
-    .bck_io_num   = I2S_BCLK_PIN,
-    .ws_io_num    = I2S_LRC_PIN,
-    .data_out_num = I2S_DOUT_PIN,
-    .data_in_num  = I2S_PIN_NO_CHANGE
-  };
-  i2s_set_pin(SPEAKER_I2S_PORT, &pin_config);
-  i2s_zero_dma_buffer(SPEAKER_I2S_PORT);
-}
-
-void stopSpeaker() {
-  if (ENABLE_SPEAKER) {
-    i2s_driver_uninstall(SPEAKER_I2S_PORT);
-  }
-  // Force GPIO 4 LOW to ensure the onboard Flashlight LED is 100% OFF
-  pinMode(I2S_BCLK_PIN, OUTPUT);
-  digitalWrite(I2S_BCLK_PIN, LOW);
-}
-
-void initSpeaker() {
-  // Ensure flashlight is forced off on boot
-  pinMode(I2S_BCLK_PIN, OUTPUT);
-  digitalWrite(I2S_BCLK_PIN, LOW);
-}
-
-// Internal raw tone generator (assumes startSpeaker() already called)
-void rawTone(int freqHz, int durationMs, int volume = 3000) {
-  int samples     = SPEAKER_SAMPLE_RATE * durationMs / 1000;
-  int16_t* buffer = (int16_t*)malloc(samples * sizeof(int16_t));
-  if (!buffer) return;
-
-  for (int i = 0; i < samples; i++) {
-    float t = (float)i / SPEAKER_SAMPLE_RATE;
-    float envelope = 1.0f;
-    int fadeLen = samples / 8;
-    if (i < fadeLen)         envelope = (float)i / fadeLen;
-    else if (i > samples - fadeLen) envelope = (float)(samples - i) / fadeLen;
-    buffer[i] = (int16_t)(sin(2.0f * PI * freqHz * t) * volume * envelope);
-  }
-
-  size_t bytesWritten = 0;
-  i2s_write(SPEAKER_I2S_PORT, buffer, samples * sizeof(int16_t), &bytesWritten, portMAX_DELAY);
-  free(buffer);
-  delay(15);
-}
-
-// Generate a simple sine-wave tone for `durationMs` milliseconds at `freqHz`
-void speakerTone(int freqHz, int durationMs, int volume = 3000) {
-  startSpeaker();
-  rawTone(freqHz, durationMs, volume);
-  stopSpeaker();
-}
-
-// ── Named sound effects ──
-
-// Startup: ascending 3-note chime (boot success)
-void soundStartup() {
-  startSpeaker();
-  rawTone(440, 120, 2500);  // A4
-  rawTone(523, 120, 2500);  // C5
-  rawTone(659, 180, 3000);  // E5
-  stopSpeaker();
-}
-
-// Capture click: short high beep (photo taken)
-void soundCapture() {
-  speakerTone(1200, 80, 2000);
-}
-
-// Mode change: two-tone blip
-void soundModeChange() {
-  startSpeaker();
-  rawTone(880, 80, 2000);
-  rawTone(660, 80, 2000);
-  stopSpeaker();
-}
-
-// Success: short rising beep (result received)
-void soundSuccess() {
-  startSpeaker();
-  rawTone(523, 100, 2000);
-  rawTone(784, 150, 2500);
-  stopSpeaker();
-}
-
-// Error: low descending double beep
-void soundError() {
-  startSpeaker();
-  rawTone(300, 200, 3000);
-  rawTone(220, 200, 3000);
-  stopSpeaker();
-}
+inline void soundStartup()    {}
+inline void soundCapture()    {}
+inline void soundModeChange() {}
+inline void soundSuccess()    {}
+inline void soundError()      {}
 
 // ─────────────────────────────────────────────────────────
 // OLED Display Helpers
@@ -507,9 +389,6 @@ void setup() {
 
   // Smart Button on GPIO 15 (Internal pull-up enabled!)
   pinMode(PIN_BUTTON, INPUT_PULLUP);
-
-  // I2S Speaker (MAX98357A)
-  initSpeaker();
 
   // OLED Init (GPIO 13 SDA, GPIO 14 SCL)
   pinMode(PIN_SDA, INPUT_PULLUP);
