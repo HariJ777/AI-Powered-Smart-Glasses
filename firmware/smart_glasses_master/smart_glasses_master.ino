@@ -122,7 +122,10 @@ String escapeJsonString(String input) {
 // ─────────────────────────────────────────────────────────
 // OLED Display Helpers & Word-Wrapping
 // ─────────────────────────────────────────────────────────
+bool oledReady = false;
+
 void oledClear() {
+  if (!oledReady) return;
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
   display.setTextSize(1);
@@ -130,6 +133,7 @@ void oledClear() {
 
 // Prints text wrapped cleanly at word boundaries up to maxLines (never overlaps footer!)
 void oledPrintWordWrapped(String text, int startX, int startY, int maxLines = 4, int maxCharsPerLine = 21) {
+  if (!oledReady) return;
   // 1. Sanitize text: keep only printable ASCII (32-126) so display never renders garbage
   String clean = "";
   for (unsigned int i = 0; i < text.length(); i++) {
@@ -175,6 +179,7 @@ void oledPrintWordWrapped(String text, int startX, int startY, int maxLines = 4,
 }
 
 void oledHome() {
+  if (!oledReady) return;
   oledClear();
   display.fillRect(0, 0, 128, 12, SSD1306_WHITE);
   display.setTextColor(SSD1306_BLACK);
@@ -203,6 +208,10 @@ void oledHome() {
 }
 
 void oledStatus(String title, String msg) {
+  if (!oledReady) {
+    Serial.printf("[STATUS] %s: %s\n", title.c_str(), msg.c_str());
+    return;
+  }
   oledClear();
   display.fillRect(0, 0, 128, 12, SSD1306_WHITE);
   display.setTextColor(SSD1306_BLACK);
@@ -218,6 +227,10 @@ void oledStatus(String title, String msg) {
 }
 
 void oledShowResult(String modeName, String result, float t) {
+  if (!oledReady) {
+    Serial.printf("[RESULT - %s (%.1fs)]: %s\n", modeName.c_str(), t, result.c_str());
+    return;
+  }
   oledClear();
   display.fillRect(0, 0, 128, 12, SSD1306_WHITE);
   display.setTextColor(SSD1306_BLACK);
@@ -457,19 +470,23 @@ void setup() {
   }
 
   if (detectedAddr == 0) {
-    Serial.println("[I2C] Warning: No OLED responded. Falling back to default 0x3C.");
-    detectedAddr = OLED_ADDR;
-  }
-
-  if (display.begin(SSD1306_SWITCHCAPVCC, detectedAddr)) {
-    Serial.printf("[OLED] Display initialized successfully at 0x%02X!\n", detectedAddr);
-    oledClear();
-    display.drawRect(0, 0, 128, 64, SSD1306_WHITE);
-    display.setCursor(14, 14); display.print("CORTEX VISION");
-    display.setCursor(20, 30); display.print("OS Booting...");
-    display.display();
+    oledReady = false;
+    Serial.println("[I2C] Warning: No OLED detected on GPIO 13 (SDA) / GPIO 14 (SCL).");
+    Serial.println("[I2C] -> Please check: OLED VCC->5V/3V3, GND->GND, SDA->Pin 4 (IO13), SCL->Pin 6 (IO14).");
+    Serial.println("[I2C] -> Continuing in Companion Mode (HUD running via Web & Bluetooth Earbuds)...");
   } else {
-    Serial.println("[OLED] Failed to initialize display.");
+    if (display.begin(SSD1306_SWITCHCAPVCC, detectedAddr)) {
+      oledReady = true;
+      Serial.printf("[OLED] Display initialized successfully at 0x%02X!\n", detectedAddr);
+      oledClear();
+      display.drawRect(0, 0, 128, 64, SSD1306_WHITE);
+      display.setCursor(14, 14); display.print("CORTEX VISION");
+      display.setCursor(20, 30); display.print("OS Booting...");
+      display.display();
+    } else {
+      oledReady = false;
+      Serial.println("[OLED] Failed to initialize display.");
+    }
   }
 
   // Camera Init (OV2640 VGA)
