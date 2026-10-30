@@ -1,20 +1,15 @@
-AI SMART GLASSES - UPDATED HARDWARE COMPONENTS LIST
-==================================================
-
-1.  ESP32-CAM Module (with OV2640 Camera)             x1
-2.  OLED Display SSD1306 (0.96 inch, 128x64, I2C)    x1
-3.  INMP441 I2S Digital Microphone                    x1
-4.  I2S Audio Amplifier Module (for example MAX98357A or PAM8302-based)  x1
-5.  Micro Speaker 8 Ohm 0.5W                          x1
-6.  Push Buttons (Momentary Tactile Switch)          x2
-7.  LiPo Battery 3.7V 1000mAh or 2000mAh             x1
-8.  TP4056 Charging Module with Protection (DW01+FS8205A or equivalent)  x1
-9.  3.3V Regulator (Low-Dropout LDO or Buck Converter, for example AP2112K-3.3 or MP1584 module)  x1
-10. 4.7k Ohm Resistor (I2C Pull-up)                   x2
-11. 10k Ohm Resistor (Button Pull-up)                 x2
-12. 100nF Ceramic Capacitor (Decoupling)             x2
-13. 10uF Electrolytic Capacitor (Bulk Decoupling)     x1
-14. Jumper Wires                                      x1 set
-15. JST Battery Connector / Battery Wire              x1
-16. Power Switch (optional but recommended)           x1
-17. Glasses Frame                                      x1
+AI SMART GLASSES - FINAL HARDWARE ARCHITECTURE (COMPANION MODEL)
+================================================================
+1.  ESP32-CAM Module (AI-Thinker with OV2640 2MP Camera)      x1
+2.  OLED Display SSD1306 (0.96 inch, 128x64, I2C 4-Pin)       x1
+3.  Tactile Momentary Push Button (Single Multifunction)       x1
+4.  Rechargeable LiPo Battery 3.7V (1000mAh - 2000mAh)         x1
+5.  TP4056 Battery Charging & Protection Module                x1
+6.  Spectacles / Glasses Frame                                 x1
+7.  Jumper Wires & Power Switch                                x1 set
+8.  Wireless Bluetooth Earbuds (User's Personal Audio Device)  x1
+----------------------------------------------------------------
+REMOVED FROM DESIGN:
+- INMP441 I2S Microphone (Hands-free button control used instead)
+- MAX98357A I2S Amplifier (Replaced by private Bluetooth Earbud audio)
+- Micro Speaker (Replaced by Bluetooth Earbuds)

@@ -1,30 +1,19 @@
 /*
  * =========================================================================
- *  AI SMART GLASSES — MASTER FIRMWARE (Single Smart Button Edition)
+ *  AI SMART GLASSES — MASTER FIRMWARE (Assistive Vision Edition)
  * =========================================================================
+ *  Architectural Model: Companion Device Architecture
+ *    - Optical Sensing & HUD: Onboard ESP32-CAM + SSD1306 OLED
+ *    - Speech Synthesis (TTS): User's Wireless Bluetooth Earbuds via Web Companion
+ *
  *  Hardware Connections:
- *    - OLED:          SDA -> GPIO 13 | SCL/SCK -> GPIO 14 (3.3V power only)
- *    - Smart Button:  GPIO 15 <-> GND (No resistors needed!)
+ *    - OLED:          SDA -> GPIO 13 (Pin 4) | SCL -> GPIO 14 (Pin 6) [3.3V power]
+ *    - Smart Button:  GPIO 15 (Pin 5) <-> GND (Internal pull-up enabled)
  *                     - Short Press (< 1.2 sec) = Take Photo & Ask AI
  *                     - Long Press  (>= 1.2 sec) = Switch Mode (VISION -> OCR -> TRANSLATE)
  *    - Camera:        AI-Thinker OV2640 (Built-in)
- *    - Speaker (MAX98357A I2S Amplifier):
- *        LRC  (Word Select / WS)  -> GPIO 2
- *        BCLK (Bit Clock)         -> GPIO 4
- *        DIN  (Data In)           -> GPIO 12
- *        GND  -> GND
- *        VIN  -> 5V (or 3.3V for lower volume)
- *        SD   -> leave unconnected (always-on mode)
- *
- *  What the speaker does:
- *    - Plays a startup beep on boot
- *    - Plays a capture click when photo is taken
- *    - Plays a short tone when the mode changes
- *    - Beeps on HTTP error so you know something went wrong
- *
- *  Note: The Flask server handles full TTS speech synthesis in the browser.
- *        The ESP32 speaker provides local audio feedback (beeps/tones only)
- *        since streaming TTS audio over WiFi adds too much latency.
+ *    - Microphone:    REMOVED (Hands-free button control used instead)
+ *    - Speaker:       REMOVED from frame (Audio routed directly to Earbuds)
  * =========================================================================
  */
 
