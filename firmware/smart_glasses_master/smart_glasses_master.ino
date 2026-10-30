@@ -515,13 +515,35 @@ void setup() {
   pinMode(PIN_SDA, INPUT_PULLUP);
   pinMode(PIN_SCL, INPUT_PULLUP);
   Wire.begin(PIN_SDA, PIN_SCL);
-  Wire.setClock(100000); // 100kHz standard speed for stable I2C without external pull-ups
-  if (display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
+  Wire.setClock(100000); // 100kHz standard speed
+
+  // Automatic I2C Scanner & Address Auto-Detection (0x3C or 0x3D)
+  uint8_t detectedAddr = 0;
+  Serial.println("\n[I2C] Scanning I2C bus on GPIO 13 (SDA) and GPIO 14 (SCL)...");
+  for (uint8_t addr = 1; addr < 127; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {
+      Serial.printf("[I2C] -> Device found at 0x%02X\n", addr);
+      if (addr == 0x3C || addr == 0x3D) {
+        detectedAddr = addr;
+      }
+    }
+  }
+
+  if (detectedAddr == 0) {
+    Serial.println("[I2C] Warning: No OLED responded. Falling back to default 0x3C.");
+    detectedAddr = OLED_ADDR;
+  }
+
+  if (display.begin(SSD1306_SWITCHCAPVCC, detectedAddr)) {
+    Serial.printf("[OLED] Display initialized successfully at 0x%02X!\n", detectedAddr);
     oledClear();
     display.drawRect(0, 0, 128, 64, SSD1306_WHITE);
     display.setCursor(14, 14); display.print("CORTEX VISION");
     display.setCursor(20, 30); display.print("OS Booting...");
     display.display();
+  } else {
+    Serial.println("[OLED] Failed to initialize display.");
   }
 
   // Camera Init (OV2640 built-in)
