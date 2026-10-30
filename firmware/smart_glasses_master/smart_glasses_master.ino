@@ -1,9 +1,11 @@
 /*
  * =========================================================================
- *  AI SMART GLASSES — MASTER FIRMWARE (Assistive Vision Edition)
+ *  AI SMART GLASSES — MASTER FIRMWARE (Production Assistive Vision Edition)
  * =========================================================================
  *  Architectural Model: Companion Device Architecture
- *    - Optical Sensing & HUD: Onboard ESP32-CAM + SSD1306 OLED
+ *    - Optical Sensing & HUD: Onboard ESP32-CAM + SSD1306 OLED (I2C)
+ *    - High-Precision AI: VGA 640x480 Raw JPEG Binary Stream (Zero Base64 RAM waste)
+ *    - Clean HUD Output: Word-wrapped ASCII text capped at 80 chars (No overlap!)
  *    - Speech Synthesis (TTS): User's Wireless Bluetooth Earbuds via Web Companion
  *
  *  Hardware Connections:
@@ -11,9 +13,8 @@
  *    - Smart Button:  GPIO 15 (Pin 5) <-> GND (Internal pull-up enabled)
  *                     - Short Press (< 1.2 sec) = Take Photo & Ask AI
  *                     - Long Press  (>= 1.2 sec) = Switch Mode (VISION -> OCR -> TRANSLATE)
- *    - Camera:        AI-Thinker OV2640 (Built-in)
- *    - Microphone:    REMOVED (Hands-free button control used instead)
- *    - Speaker:       REMOVED from frame (Audio routed directly to Earbuds)
+ *    - Camera:        AI-Thinker OV2640 (VGA 640x480, PSRAM enabled)
+ *    - Power:         3.7V LiPo + TP4056 (Recommend 470uF capacitor on 5V rail)
  * =========================================================================
  */
 
@@ -25,9 +26,8 @@
 #include <WebServer.h>
 #include <ArduinoJson.h>
 #include "esp_camera.h"
-#include "mbedtls/base64.h"
-#include "soc/soc.h"             // Brownout protection control
-#include "soc/rtc_cntl_reg.h"    // Brownout register
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 
 // ─────────────────────────────────────────────────────────
 // ⚙️ EDIT YOUR WIFI DETAILS HERE
@@ -80,7 +80,6 @@ GlassesMode currentMode = MODE_DESCRIBE;
 String lastResult       = "Ready for command!";
 String lastModeName     = "DESCRIBE";
 float  lastRespTime     = 0.0;
-String lastImageBase64  = "";
 
 WebServer webServer(80);
 String serverBase = "http://" + String(SERVER_IP) + ":" + String(SERVER_PORT);
@@ -92,7 +91,7 @@ bool longPressTriggered       = false;
 const unsigned long LONG_PRESS_MS = 1200;
 
 // ─────────────────────────────────────────────────────────
-// Audio Feedback (Disabled to guarantee 100% board stability)
+// Audio Feedback Stubs (Companion model routes audio to earbuds)
 // ─────────────────────────────────────────────────────────
 inline void soundStartup()    {}
 inline void soundCapture()    {}
@@ -101,12 +100,78 @@ inline void soundSuccess()    {}
 inline void soundError()      {}
 
 // ─────────────────────────────────────────────────────────
-// OLED Display Helpers
+// String Sanitization Helpers
+// ─────────────────────────────────────────────────────────
+String escapeHtml(String input) {
+  input.replace("&", "&amp;");
+  input.replace("<", "&lt;");
+  input.replace(">", "&gt;");
+  input.replace("\"", "&quot;");
+  input.replace("'", "&#39;");
+  return input;
+}
+
+String escapeJsonString(String input) {
+  input.replace("\\", "\\\\");
+  input.replace("\"", "\\\"");
+  input.replace("\n", " ");
+  input.replace("\r", " ");
+  return input;
+}
+
+// ─────────────────────────────────────────────────────────
+// OLED Display Helpers & Word-Wrapping
 // ─────────────────────────────────────────────────────────
 void oledClear() {
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
   display.setTextSize(1);
+}
+
+// Prints text wrapped cleanly at word boundaries up to maxLines (never overlaps footer!)
+void oledPrintWordWrapped(String text, int startX, int startY, int maxLines = 4, int maxCharsPerLine = 21) {
+  // 1. Sanitize text: keep only printable ASCII (32-126) so display never renders garbage
+  String clean = "";
+  for (unsigned int i = 0; i < text.length(); i++) {
+    char c = text[i];
+    if (c >= 32 && c <= 126) {
+      clean += c;
+    } else if (c == '\n' || c == '\t' || c == '\r') {
+      clean += ' ';
+    }
+  }
+  clean.trim();
+  if (clean.length() == 0) return;
+
+  // Cap at 80 characters (4 lines * 20 chars) to prevent overflowing the 54px divider
+  if (clean.length() > 80) {
+    clean = clean.substring(0, 77) + "...";
+  }
+
+  int currentLine = 0;
+  int idx = 0;
+  int len = clean.length();
+
+  while (idx < len && currentLine < maxLines) {
+    int lineEnd = idx + maxCharsPerLine;
+    if (lineEnd >= len) {
+      display.setCursor(startX, startY + (currentLine * 9));
+      display.print(clean.substring(idx));
+      break;
+    }
+
+    int spaceIdx = clean.lastIndexOf(' ', lineEnd);
+    if (spaceIdx > idx) {
+      display.setCursor(startX, startY + (currentLine * 9));
+      display.print(clean.substring(idx, spaceIdx));
+      idx = spaceIdx + 1;
+    } else {
+      display.setCursor(startX, startY + (currentLine * 9));
+      display.print(clean.substring(idx, lineEnd));
+      idx = lineEnd;
+    }
+    currentLine++;
+  }
 }
 
 void oledHome() {
@@ -145,8 +210,7 @@ void oledStatus(String title, String msg) {
   display.print(title);
   
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 20);
-  display.println(msg);
+  oledPrintWordWrapped(msg, 0, 18, 3, 21);
   
   display.drawRect(0, 53, 128, 8, SSD1306_WHITE);
   display.fillRect(2, 55, 80, 4, SSD1306_WHITE);
@@ -163,9 +227,8 @@ void oledShowResult(String modeName, String result, float t) {
   display.print("s");
   
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 16);
-  if (result.length() > 95) result = result.substring(0, 92) + "...";
-  display.print(result);
+  // Word-wrap up to 4 lines (y = 15, 24, 33, 42) — completely avoids the 54px footer line!
+  oledPrintWordWrapped(result, 0, 15, 4, 21);
 
   display.drawLine(0, 54, 128, 54, SSD1306_WHITE);
   display.setCursor(0, 56);
@@ -174,10 +237,10 @@ void oledShowResult(String modeName, String result, float t) {
 }
 
 // ─────────────────────────────────────────────────────────
-// Camera & Capture
+// Camera Initialization (VGA Resolution for High-Precision OCR)
 // ─────────────────────────────────────────────────────────
 bool initCamera() {
-  camera_config_t config;
+  camera_config_t config = {}; // Zero-initialize to prevent random init failures on newer ESP-IDF
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer   = LEDC_TIMER_0;
   config.pin_d0       = Y2_GPIO_NUM;
@@ -198,15 +261,17 @@ bool initCamera() {
   config.pin_reset    = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
-  config.frame_size   = FRAMESIZE_QVGA;
-  config.jpeg_quality = 12;
+  config.frame_size   = FRAMESIZE_VGA;           // 640x480 for sharp, reliable OCR!
+  config.jpeg_quality = 12;                      // 10-12 gives optimal quality vs size
   config.fb_count     = 1;
-#if defined(CAMERA_GRAB_LATEST)
-  config.grab_mode    = CAMERA_GRAB_LATEST;
-#endif
+  config.fb_location  = CAMERA_FB_IN_PSRAM;      // Allocate frame buffer in PSRAM
+  config.grab_mode    = CAMERA_GRAB_WHEN_EMPTY;  // Clean standard grab mode
 
   esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) return false;
+  if (err != ESP_OK) {
+    Serial.printf("[CAM] Init failed with error 0x%x\n", err);
+    return false;
+  }
 
   sensor_t* s = esp_camera_sensor_get();
   if (s) {
@@ -218,47 +283,28 @@ bool initCamera() {
   return true;
 }
 
-String captureBase64() {
-  // Flush stale DMA buffer frames so we capture the true live scene NOW
+// ─────────────────────────────────────────────────────────
+// AI Processing Pipeline (Raw Binary JPEG Stream — Zero Base64 RAM Overhead)
+// ─────────────────────────────────────────────────────────
+void runAIPipeline(String type) {
+  oledStatus("OPTICAL SCAN", "Capturing frame...");
+
+  // Flush stale DMA buffer frames to capture the live scene right NOW
   for (int i = 0; i < 2; i++) {
     camera_fb_t* oldFb = esp_camera_fb_get();
     if (oldFb) {
       esp_camera_fb_return(oldFb);
-      delay(25);
+      delay(20);
     }
   }
 
   camera_fb_t* fb = esp_camera_fb_get();
-  if (!fb) return "";
-  
-  size_t encodedLen = ((fb->len + 2) / 3) * 4 + 1;
-  uint8_t* encoded = (uint8_t*)malloc(encodedLen);
-  if (!encoded) { esp_camera_fb_return(fb); return ""; }
-  
-  size_t outLen = 0;
-  mbedtls_base64_encode(encoded, encodedLen, &outLen, fb->buf, fb->len);
-  String result = String((char*)encoded).substring(0, outLen);
-  free(encoded);
-  esp_camera_fb_return(fb);
-  return result;
-}
-
-// ─────────────────────────────────────────────────────────
-// AI Processing Pipeline
-// ─────────────────────────────────────────────────────────
-void runAIPipeline(String type) {
-  oledStatus("OPTICAL SCAN", "Capturing frame...");
-  soundCapture();  // Click sound when photo is taken
-  
-  String b64 = captureBase64();
-  if (b64.isEmpty()) {
+  if (!fb) {
     oledStatus("SYSTEM ERROR", "Camera frame error!");
-    soundError();
     delay(1500);
     oledHome();
     return;
   }
-  lastImageBase64 = b64;
 
   String modeName = "NEURAL VISION";
   if (type == "ocr") modeName = "TEXT OCR";
@@ -266,40 +312,52 @@ void runAIPipeline(String type) {
 
   oledStatus("NEURAL CORE", (type == "translate") ? "Translating..." : "Analyzing scene...");
 
-  DynamicJsonDocument doc(b64.length() + 200);
-  doc["image_base64"]  = b64;
-  doc["analysis_type"] = type;
-  String payload;
-  serializeJson(doc, payload);
-
   HTTPClient http;
-  http.begin(serverBase + "/analyze-image");
-  http.addHeader("Content-Type", "application/json");
+  http.begin(serverBase + "/analyze-image?type=" + type);
+  http.addHeader("Content-Type", "image/jpeg");
+  http.addHeader("X-Analysis-Type", type);
   http.setTimeout(25000); // 25s timeout for AI cloud inference
 
   unsigned long t0 = millis();
-  int httpCode = http.POST(payload);
+  // Directly post the binary JPEG buffer (3x less memory than Base64, 33% smaller payload!)
+  int httpCode = http.POST(fb->buf, fb->len);
   lastRespTime = (millis() - t0) / 1000.0;
   lastModeName = modeName;
 
+  // Immediately release camera frame buffer to free memory!
+  esp_camera_fb_return(fb);
+
   if (httpCode == 200) {
     String body = http.getString();
-    DynamicJsonDocument resp(4096);
-    if (!deserializeJson(resp, body)) {
-      if (resp.containsKey("oled_text"))   lastResult = resp["oled_text"].as<String>();
-      else if (resp.containsKey("result")) lastResult = resp["result"].as<String>();
-      else if (resp.containsKey("text"))   lastResult = resp["text"].as<String>();
-      else                                 lastResult = body.substring(0, 95);
+    // StaticJsonDocument<1024> is fully compatible with both ArduinoJson v6 and v7
+    StaticJsonDocument<1024> resp;
+    DeserializationError err = deserializeJson(resp, body);
+    if (!err) {
+      if (resp.containsKey("oled_text"))        lastResult = resp["oled_text"].as<String>();
+      else if (resp.containsKey("result"))      lastResult = resp["result"].as<String>();
+      else if (resp.containsKey("text"))        lastResult = resp["text"].as<String>();
+      else                                      lastResult = body;
     } else {
-      lastResult = body.substring(0, 95);
+      lastResult = body;
     }
     lastResult.trim();
     oledShowResult(modeName, lastResult, lastRespTime);
-    soundSuccess();  // Rising beep = result arrived!
   } else {
-    lastResult = "HTTP Error: " + String(httpCode);
-    oledStatus("SERVER ERROR", lastResult);
-    soundError();    // Descending beep = something went wrong
+    // Actionable human-readable HTTP error diagnostics
+    String errMsg = "";
+    if (httpCode == -1) {
+      errMsg = "Can't reach server!\nCheck PC IP/Firewall";
+    } else if (httpCode == -11) {
+      errMsg = "AI Timeout (>25s)\nServer busy";
+    } else if (httpCode == 404) {
+      errMsg = "404 Not Found\nCheck /analyze-image";
+    } else if (httpCode == 500) {
+      errMsg = "500 Server Error\nCheck Flask logs";
+    } else {
+      errMsg = "HTTP Error " + String(httpCode);
+    }
+    lastResult = errMsg;
+    oledStatus("SERVER ERROR", errMsg);
   }
   http.end();
 }
@@ -307,19 +365,11 @@ void runAIPipeline(String type) {
 bool pendingWebTrigger = false;
 String pendingWebType   = "";
 
-String escapeJsonString(String input) {
-  input.replace("\\", "\\\\");
-  input.replace("\"", "\\\"");
-  input.replace("\n", " ");
-  input.replace("\r", " ");
-  return input;
-}
-
 // ─────────────────────────────────────────────────────────
-// Web Endpoints (Allows phone/browser control too!)
+// Web Endpoints
 // ─────────────────────────────────────────────────────────
 void handleRoot() {
-  String safeResult = escapeJsonString(lastResult);
+  String safeHtml = escapeHtml(lastResult);
   String html = R"rawliteral(
 <!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AI Glasses Pro</title><style>
@@ -337,7 +387,7 @@ h1{color:#58a6ff;font-size:20px}
 <a href=")rawliteral" + serverBase + R"rawliteral(" target="_blank" style="text-decoration:none;">
   <button class="btn btn-hud">⚡ OPEN FULL HUD</button>
 </a>
-<div class="box"><b>Latest Result:</b><p id="r">)rawliteral" + safeResult + R"rawliteral(</p></div>
+<div class="box"><b>Latest Result:</b><p id="r">)rawliteral" + safeHtml + R"rawliteral(</p></div>
 <script>
 let polling = false;
 setInterval(async()=>{
@@ -376,7 +426,8 @@ void handleStatus() {
 // SETUP
 // ─────────────────────────────────────────────────────────
 void setup() {
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // Disable brownout detector to prevent voltage drop resets
+  // Use a 5V power bank or 470uF capacitor on the 5V rail for clean current delivery
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); // Kept safe for development on USB programmer
   Serial.begin(115200);
   delay(200);
   Serial.println("\n\n========================================");
@@ -421,10 +472,9 @@ void setup() {
     Serial.println("[OLED] Failed to initialize display.");
   }
 
-  // Camera Init (OV2640 built-in)
+  // Camera Init (OV2640 VGA)
   if (!initCamera()) {
     oledStatus("ERROR", "Camera Init FAILED!");
-    soundError();
     while (true) delay(1000);
   }
 
@@ -445,10 +495,8 @@ void setup() {
     webServer.on("/status", handleStatus);
     webServer.begin();
     oledHome();
-    soundStartup();  // 3-note ascending chime = all systems ready!
   } else {
-    oledStatus("WIFI ERROR", "Could not connect!");
-    soundError();
+    oledStatus("WIFI ERROR", "Could not connect!\nCheck SSID/Pass");
   }
 }
 
@@ -487,7 +535,6 @@ void loop() {
                            (currentMode == MODE_OCR) ? "TEXT OCR" : "TRANSLATE";
           Serial.println("[BUTTON] Mode switched to: " + newMode);
           oledStatus("MODE CHANGED", "Active: " + newMode);
-          soundModeChange();  // Two-tone blip = mode switched!
           delay(1000);
           oledHome();
         }

@@ -700,6 +700,19 @@ def health_check():
     })
 
 
+
+def to_clean_ascii(val: str, max_chars: int = 80) -> str:
+    """Ensure text sent to the SSD1306 OLED is 100% printable ASCII and under max_chars"""
+    if not val:
+        return ""
+    import unicodedata
+    norm = unicodedata.normalize('NFKD', val)
+    clean = norm.encode('ascii', 'ignore').decode('ascii')
+    clean = " ".join(clean.split())
+    if len(clean) > max_chars:
+        clean = clean[:max_chars - 3].rstrip() + "..."
+    return clean
+
 @app.route('/analyze-image', methods=['POST'])
 def analyze_image():
     """
@@ -720,13 +733,20 @@ def analyze_image():
     logger.info(f"Memory before: {memory_before}")
     
     try:
-        data = request.json
-        image_base64 = data.get('image_base64')
-        analysis_type = data.get('analysis_type', 'description')  # description or ocr
-        custom_prompt = data.get('prompt')
+        # Support both Raw JPEG binary POST (low RAM / high-res VGA) and JSON base64
+        if request.content_type == 'image/jpeg' or (request.data and not request.is_json):
+            image_base64 = base64.b64encode(request.data).decode('utf-8')
+            analysis_type = request.headers.get('X-Analysis-Type') or request.args.get('type') or 'description'
+            custom_prompt = request.headers.get('X-Prompt') or request.args.get('prompt')
+            data = {}
+        else:
+            data = request.get_json(silent=True) or {}
+            image_base64 = data.get('image_base64')
+            analysis_type = data.get('analysis_type', 'description')
+            custom_prompt = data.get('prompt')
         
         if not image_base64:
-            return jsonify({"error": "image_base64 required"}), 400
+            return jsonify({"error": "image payload required"}), 400
         
         # Check Groq request limit
         if analysis_type == 'description' and request_count["groq"] >= 14400:
@@ -778,7 +798,7 @@ def analyze_image():
             else:
                 request_count["groq"] += 1
         elif analysis_type == 'translate':
-            target_lang = data.get('target_language', current_target_language)
+            target_lang = request.headers.get('X-Target-Language') or request.args.get('lang') or data.get('target_language', current_target_language)
             logger.info(f"Route: Multimodal Translation -> {target_lang}")
             trans_prompt = custom_prompt or (
                 f"You are an AI Smart Glasses multimodal translator.\n"
@@ -860,6 +880,10 @@ def analyze_image():
         logger.info(f"Response time: {elapsed:.2f}s")
         logger.info("=" * 50)
         
+        # Guarantee clean ASCII text for the ESP32 SSD1306 OLED HUD
+        oled_safe = to_clean_ascii(result.get("oled_text") or result.get("result") or result.get("text") or "", 80)
+        result["oled_text"] = oled_safe
+
         return jsonify({
             **result,
             "response_time_seconds": round(elapsed, 3),
