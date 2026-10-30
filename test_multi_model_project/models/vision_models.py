@@ -93,7 +93,10 @@ def analyze_image_with_gemini(image_base64: str, prompt: str = "Describe what yo
                 except Exception as model_err:
                     err_msg = str(model_err)
                     last_error = err_msg
-                    if "429" in err_msg or "ResourceExhausted" in err_msg or "Quota" in err_msg or "quota" in err_msg:
+                    if "DNS" in err_msg or "NameResolution" in err_msg or "Failed to connect" in err_msg or "Network is unreachable" in err_msg:
+                        logger.error(f"Network/DNS error connecting to Gemini API: {err_msg[:100]}")
+                        break  # Do not retry 5 other models if entire internet/DNS is down
+                    elif "429" in err_msg or "ResourceExhausted" in err_msg or "Quota" in err_msg or "quota" in err_msg:
                         logger.warning(f"Quota 429 on {model_name}. Auto-falling back to next model...")
                     else:
                         logger.warning(f"Model {model_name} issue: {err_msg[:80]}. Falling back...")

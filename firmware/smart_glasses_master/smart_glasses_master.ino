@@ -329,7 +329,7 @@ void runAIPipeline(String type) {
   http.begin(serverBase + "/analyze-image?type=" + type);
   http.addHeader("Content-Type", "image/jpeg");
   http.addHeader("X-Analysis-Type", type);
-  http.setTimeout(25000); // 25s timeout for AI cloud inference
+  http.setTimeout(45000); // 45s timeout to allow for high-res VGA processing and cloud AI inference
 
   unsigned long t0 = millis();
   // Directly post the binary JPEG buffer (3x less memory than Base64, 33% smaller payload!)
@@ -361,7 +361,7 @@ void runAIPipeline(String type) {
     if (httpCode == -1) {
       errMsg = "Can't reach server!\nCheck PC IP/Firewall";
     } else if (httpCode == -11) {
-      errMsg = "AI Timeout (>25s)\nServer busy";
+      errMsg = "AI Timeout (>45s)\nServer busy";
     } else if (httpCode == 404) {
       errMsg = "404 Not Found\nCheck /analyze-image";
     } else if (httpCode == 500) {
@@ -507,12 +507,17 @@ void setup() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n========================================");
+    Serial.printf("[WIFI] Connected! IP Address: %s\n", WiFi.localIP().toString().c_str());
+    Serial.printf("[WEB]  Glasses Remote page: http://%s/\n", WiFi.localIP().toString().c_str());
+    Serial.println("========================================\n");
     webServer.on("/", handleRoot);
     webServer.on("/action", handleWebAction);
     webServer.on("/status", handleStatus);
     webServer.begin();
     oledHome();
   } else {
+    Serial.println("[WIFI] Failed to connect to Wi-Fi network.");
     oledStatus("WIFI ERROR", "Could not connect!\nCheck SSID/Pass");
   }
 }
