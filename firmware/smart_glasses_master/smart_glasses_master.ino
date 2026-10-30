@@ -44,8 +44,12 @@
 // ─────────────────────────────────────────────────────────
 #define WIFI_SSID       "Niggaa"        // <-- Replace with your WiFi SSID
 #define WIFI_PASSWORD   "012345678"    // <-- Replace with your WiFi Password
-#define SERVER_IP       "10.111.103.214"        // Your PC's current IP address
+#define SERVER_IP       "10.111.103.51" // Your PC's active IP address
 #define SERVER_PORT     5000
+
+// Set to 1 ONLY if you have wired the MAX98357A I2S amplifier and micro speaker.
+// Default 0 prevents reboot loops and pin conflicts on GPIO 4 (Flashlight) and GPIO 12.
+#define ENABLE_SPEAKER  0
 
 // ─────────────────────────────────────────────────────────
 // Pin Definitions
@@ -110,11 +114,12 @@ const unsigned long LONG_PRESS_MS = 1200;
 // I2S Speaker — MAX98357A Setup & Tone Generator
 // ─────────────────────────────────────────────────────────
 
-// Sample rate and I2S port
+// Sample rate and I2S port (I2S_NUM_1 avoids colliding with the camera DMA on I2S_NUM_0)
 #define SPEAKER_SAMPLE_RATE  16000
-#define SPEAKER_I2S_PORT     I2S_NUM_0
+#define SPEAKER_I2S_PORT     I2S_NUM_1
 
-void initSpeaker() {
+void startSpeaker() {
+  if (!ENABLE_SPEAKER) return;
   i2s_config_t i2s_config = {
     .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
     .sample_rate          = SPEAKER_SAMPLE_RATE,
@@ -139,17 +144,31 @@ void initSpeaker() {
   i2s_zero_dma_buffer(SPEAKER_I2S_PORT);
 }
 
-// Generate a simple sine-wave tone for `durationMs` milliseconds at `freqHz`
-void speakerTone(int freqHz, int durationMs, int volume = 3000) {
+void stopSpeaker() {
+  if (ENABLE_SPEAKER) {
+    i2s_driver_uninstall(SPEAKER_I2S_PORT);
+  }
+  // Force GPIO 4 LOW to ensure the onboard Flashlight LED is 100% OFF
+  pinMode(I2S_BCLK_PIN, OUTPUT);
+  digitalWrite(I2S_BCLK_PIN, LOW);
+}
+
+void initSpeaker() {
+  // Ensure flashlight is forced off on boot
+  pinMode(I2S_BCLK_PIN, OUTPUT);
+  digitalWrite(I2S_BCLK_PIN, LOW);
+}
+
+// Internal raw tone generator (assumes startSpeaker() already called)
+void rawTone(int freqHz, int durationMs, int volume = 3000) {
   int samples     = SPEAKER_SAMPLE_RATE * durationMs / 1000;
   int16_t* buffer = (int16_t*)malloc(samples * sizeof(int16_t));
   if (!buffer) return;
 
   for (int i = 0; i < samples; i++) {
-    // Sine wave sample with fade-in/out envelope to avoid clicks
     float t = (float)i / SPEAKER_SAMPLE_RATE;
     float envelope = 1.0f;
-    int fadeLen = samples / 8;                     // 12.5% fade each side
+    int fadeLen = samples / 8;
     if (i < fadeLen)         envelope = (float)i / fadeLen;
     else if (i > samples - fadeLen) envelope = (float)(samples - i) / fadeLen;
     buffer[i] = (int16_t)(sin(2.0f * PI * freqHz * t) * volume * envelope);
@@ -158,16 +177,25 @@ void speakerTone(int freqHz, int durationMs, int volume = 3000) {
   size_t bytesWritten = 0;
   i2s_write(SPEAKER_I2S_PORT, buffer, samples * sizeof(int16_t), &bytesWritten, portMAX_DELAY);
   free(buffer);
-  delay(20); // Small gap so tones don't blur together
+  delay(15);
+}
+
+// Generate a simple sine-wave tone for `durationMs` milliseconds at `freqHz`
+void speakerTone(int freqHz, int durationMs, int volume = 3000) {
+  startSpeaker();
+  rawTone(freqHz, durationMs, volume);
+  stopSpeaker();
 }
 
 // ── Named sound effects ──
 
 // Startup: ascending 3-note chime (boot success)
 void soundStartup() {
-  speakerTone(440, 120, 2500);  // A4
-  speakerTone(523, 120, 2500);  // C5
-  speakerTone(659, 180, 3000);  // E5
+  startSpeaker();
+  rawTone(440, 120, 2500);  // A4
+  rawTone(523, 120, 2500);  // C5
+  rawTone(659, 180, 3000);  // E5
+  stopSpeaker();
 }
 
 // Capture click: short high beep (photo taken)
@@ -177,20 +205,26 @@ void soundCapture() {
 
 // Mode change: two-tone blip
 void soundModeChange() {
-  speakerTone(880, 80, 2000);
-  speakerTone(660, 80, 2000);
+  startSpeaker();
+  rawTone(880, 80, 2000);
+  rawTone(660, 80, 2000);
+  stopSpeaker();
 }
 
 // Success: short rising beep (result received)
 void soundSuccess() {
-  speakerTone(523, 100, 2000);
-  speakerTone(784, 150, 2500);
+  startSpeaker();
+  rawTone(523, 100, 2000);
+  rawTone(784, 150, 2500);
+  stopSpeaker();
 }
 
 // Error: low descending double beep
 void soundError() {
-  speakerTone(300, 200, 3000);
-  speakerTone(220, 200, 3000);
+  startSpeaker();
+  rawTone(300, 200, 3000);
+  rawTone(220, 200, 3000);
+  stopSpeaker();
 }
 
 // ─────────────────────────────────────────────────────────
@@ -427,7 +461,7 @@ h1{color:#58a6ff;font-size:20px}
 <button class="btn btn-desc" onclick="fetch('/action?type=description')">📷 SCENE VISION</button>
 <button class="btn btn-ocr" onclick="fetch('/action?type=ocr')">🔤 READ TEXT (OCR)</button>
 <button class="btn btn-trans" onclick="fetch('/action?type=translate')">🌐 TRANSLATE TEXT</button>
-<a href="http://10.111.103.214:5000" target="_blank" style="text-decoration:none;">
+<a href=")rawliteral" + serverBase + R"rawliteral(" target="_blank" style="text-decoration:none;">
   <button class="btn btn-hud">⚡ OPEN FULL HUD</button>
 </a>
 <div class="box"><b>Latest Result:</b><p id="r">)rawliteral" + safeResult + R"rawliteral(</p></div>
@@ -478,7 +512,10 @@ void setup() {
   initSpeaker();
 
   // OLED Init (GPIO 13 SDA, GPIO 14 SCL)
+  pinMode(PIN_SDA, INPUT_PULLUP);
+  pinMode(PIN_SCL, INPUT_PULLUP);
   Wire.begin(PIN_SDA, PIN_SCL);
+  Wire.setClock(100000); // 100kHz standard speed for stable I2C without external pull-ups
   if (display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
     oledClear();
     display.drawRect(0, 0, 128, 64, SSD1306_WHITE);

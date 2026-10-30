@@ -13,20 +13,88 @@ Before starting, gather all these components:
 | # | Component | Check |
 |---|-----------|-------|
 | 1 | ESP32-CAM module (AI-Thinker, with OV2640 camera) | ☐ |
-| 2 | FTDI / CP2102 USB-to-Serial adapter | ☐ |
+| 2 | FTDI / CP2102 USB-to-Serial adapter (for programming only) | ☐ |
 | 3 | OLED display SSD1306 (0.96", 4-pin I2C version) | ☐ |
-| 4 | INMP441 I2S microphone breakout | ☐ |
-| 5 | MAX98357A I2S amplifier breakout | ☐ |
-| 6 | Micro speaker (8Ω, 0.5W) | ☐ |
-| 7 | 2× Push buttons (6×6mm tactile) | ☐ |
-| 8 | 2× 4.7kΩ resistors (yellow-violet-red) | ☐ |
-| 9 | 2× 10kΩ resistors (brown-black-orange) | ☐ |
-| 10 | 2× 100nF ceramic capacitors (marked "104") | ☐ |
-| 11 | 1× 10µF electrolytic capacitor | ☐ |
-| 12 | LiPo battery 3.7V + TP4056 charger + AMS1117-3.3V | ☐ |
-| 13 | Breadboard (full-size recommended) | ☐ |
-| 14 | Jumper wires (male-to-female + male-to-male) | ☐ |
-| 15 | USB micro cable (for FTDI adapter) | ☐ |
+| 4 | MAX98357A I2S amplifier breakout | ☐ |
+| 5 | Micro speaker (4Ω or 8Ω, 0.5W) | ☐ |
+| 6 | **1×** Push button (6×6mm tactile) | ☐ |
+| 7 | 2× 4.7kΩ resistors (yellow-violet-red) — for OLED I2C pull-up | ☐ |
+| 8 | LiPo battery 3.7V + TP4056 charger module | ☐ |
+| 9 | Jumper wires (male-to-female + male-to-male) | ☐ |
+| 10 | USB micro cable (for FTDI adapter) | ☐ |
+
+> **Note:** The current firmware (`smart_glasses_master`) uses a **single smart button** (short press = capture, long press = change mode). The INMP441 microphone is **not used** in the current firmware.
+
+---
+
+## ⚡ Quick Reference Wiring Tables
+
+### 1. 🖥️ OLED Display (SSD1306 0.96" I2C) ➔ ESP32-CAM
+
+| OLED Pin | ESP32-CAM Pin | Wire Color (Rec.) | Notes |
+|:---|:---|:---:|:---|
+| **VCC** | **3.3V / 3V3** | 🔴 Red | ⚠️ **Must use 3.3V**, do not connect to 5V! |
+| **GND** | **GND** | ⚫ Black | Common Ground |
+| **SDA** | **GPIO 13** | 🔵 Blue | I2C Data (requires 4.7kΩ pull-up to 3.3V) |
+| **SCL / SCK** | **GPIO 14** | 🟡 Yellow | I2C Clock (requires 4.7kΩ pull-up to 3.3V) |
+
+---
+
+### 2. 🔊 Speaker System (MAX98357A Amplifier) ➔ ESP32-CAM
+
+| MAX98357A Pin | ESP32-CAM Pin | Wire Color (Rec.) | Notes |
+|:---|:---|:---:|:---|
+| **VIN** | **5V** | 🔴 Red | Connect to 5V (gives clear & louder volume) |
+| **GND** | **GND** | ⚫ Black | Common Ground |
+| **LRC (WS)** | **GPIO 2** | 🟢 Green | I2S Word Select / Frame Clock |
+| **BCLK** | **GPIO 4** | 🟠 Orange | I2S Bit Clock |
+| **DIN** | **GPIO 12** | 🟣 Purple | I2S Serial Audio Data |
+| **SD** | *Leave Empty* | — | Unconnected (Always-on active mode) |
+| **GAIN** | *Leave Empty* | — | Unconnected (Default +9dB gain) |
+
+#### 🔈 Speaker ➔ MAX98357A Board:
+| Speaker Wire | MAX98357A Terminal |
+|:---|:---|
+| **Red (+)** | **Speaker +** terminal |
+| **Black (−)** | **Speaker −** terminal |
+
+---
+
+### 3. 🔘 Smart Push Button ➔ ESP32-CAM
+
+| Button Leg | ESP32-CAM Pin | Notes |
+|:---|:---|:---|
+| **Leg A** | **GPIO 15** | Signal pin |
+| **Leg B** | **GND** | Ground (Firmware uses internal pull-up, **no resistor needed**) |
+
+---
+
+### 4. 🔋 Battery & Power System (3.7V LiPo + TP4056) ➔ ESP32-CAM
+
+| From (Battery / Module) | To (Destination) | Wire Color (Rec.) | Notes |
+|:---|:---|:---:|:---|
+| **LiPo Battery (+ Red)** | **TP4056 B+** | 🔴 Red | Battery positive input |
+| **LiPo Battery (− Black)** | **TP4056 B−** | ⚫ Black | Battery negative input |
+| **TP4056 OUT+** | **ESP32-CAM 5V pin** | 🔴 Red | Powers onboard regulator & amp |
+| **TP4056 OUT−** | **ESP32-CAM GND pin** | ⚫ Black | Common system ground |
+
+*(Optional: Place an ON/OFF slide switch on the wire between **TP4056 OUT+** and the **ESP32-CAM 5V** pin).*
+
+---
+
+### 📌 Master ESP32-CAM Pin Map Summary
+
+| ESP32-CAM Pin | Connected To | Function |
+|:---|:---|:---|
+| **5V** | TP4056 OUT+ & MAX98357A VIN | Power input / Amp power |
+| **3V3** | OLED VCC (and 4.7kΩ pull-up resistors) | 3.3V Logic rail |
+| **GND** | TP4056 OUT−, OLED GND, MAX98357A GND, Button Leg B | Common Ground |
+| **GPIO 2** | MAX98357A **LRC** | Speaker Word Select |
+| **GPIO 4** | MAX98357A **BCLK** | Speaker Bit Clock |
+| **GPIO 12** | MAX98357A **DIN** | Speaker Data |
+| **GPIO 13** | OLED **SDA** | I2C Data |
+| **GPIO 14** | OLED **SCL** | I2C Clock |
+| **GPIO 15** | Button Leg A | Single Smart Button |
 
 ---
 
@@ -203,227 +271,109 @@ void loop() {}
 
 ---
 
-## 🔌 Step 4: Push Buttons
+## 🔌 Step 4: Single Smart Button (Multifunction)
 
-Add the two user-input buttons.
+The current master firmware (`smart_glasses_master.ino`) uses a **single smart button** with internal pull-up enabled (`pinMode(PIN_BUTTON, INPUT_PULLUP)`). **No external resistors are needed!**
 
 ### What You're Connecting
 
-Each button connects between a GPIO pin and GND. A pull-up resistor keeps the pin HIGH when the button is NOT pressed.
+A single push button connects between **GPIO 15** and **GND**.
+
+- **Short press** (< 1.2 sec) = Take photo & query AI
+- **Long press** (≥ 1.2 sec) = Switch mode (`VISION` → `OCR` → `TRANSLATE`)
 
 ### Connections
 
-**Button 1 (Mode Select):**
-
-| Wire # | From | To | Notes |
-|--------|------|----|-------|
-| 1 | Button Leg A | **ESP32-CAM GPIO 0** | 🟤 Brown wire |
-| 2 | Button Leg B | **GND** rail | ⚫ Black wire |
-| 3 | **10kΩ resistor** | Between **3.3V** rail and **GPIO 0** row | Pull-up |
-
-**Button 2 (Action / Capture):**
-
-| Wire # | From | To | Notes |
-|--------|------|----|-------|
-| 4 | Button Leg A | **ESP32-CAM GPIO 16** | 🟤 Brown wire |
-| 5 | Button Leg B | **GND** rail | ⚫ Black wire |
-| 6 | **10kΩ resistor** | Between **3.3V** rail and **GPIO 16** row | Pull-up |
-
-### How a Button Looks on a Breadboard
+| Wire # | From | To | Wire Color | Notes |
+|--------|------|----|------------|-------|
+| 1 | Button Leg A | **ESP32-CAM GPIO 15** | 🟤 Brown | Signal line |
+| 2 | Button Leg B | **GND rail** | ⚫ Black | Ground return |
 
 ```
-  A tactile button has 4 legs arranged in 2 pairs:
-
-       Leg A ──┐     ┌── Leg A
-               │ BTN │
-       Leg B ──┘     └── Leg B
-
-  Place it across the center gap of the breadboard:
-
-     3.3V ──[10kΩ]──┬── GPIO 0 (or 16)
-                     │
-                   [BTN]
-                     │
-                    GND
+ESP32-CAM                      Button
+┌──────────┐               ┌────────────┐
+│          │               │  Leg A ─┐  │
+│ GPIO 15  ├── 🟤 Brown ──►│         │  │ (Press connects Leg A to B)
+│          │               │  Leg B ─┼──┼── ⚫ Black ──► GND Rail
+└──────────┘               └────────────┘
 ```
+
+> **Why no resistor?** The ESP32 has internal pull-up resistors inside the chip that keep GPIO 15 at HIGH (3.3V) when released. When you press the button, it shorts to GND (LOW).
 
 ### ✅ Test Step 4
 
-Upload this test sketch:
+Upload this test sketch to verify your button wiring:
 
 ```cpp
-#define BTN_MODE   0    // GPIO 0
-#define BTN_ACTION 16   // GPIO 16
+#define PIN_BUTTON 15
 
 void setup() {
   Serial.begin(115200);
-  pinMode(BTN_MODE, INPUT_PULLUP);
-  pinMode(BTN_ACTION, INPUT_PULLUP);
-  Serial.println("Press buttons to test...");
+  pinMode(PIN_BUTTON, INPUT_PULLUP);
+  Serial.println("Smart Button test ready!");
+  Serial.println("Try short tap (<1.2s) and long press (>=1.2s)...");
 }
 
 void loop() {
-  if (digitalRead(BTN_MODE) == LOW) {
-    Serial.println("Button 1 (MODE) pressed!");
-    delay(300);
-  }
-  if (digitalRead(BTN_ACTION) == LOW) {
-    Serial.println("Button 2 (ACTION) pressed!");
-    delay(300);
+  if (digitalRead(PIN_BUTTON) == LOW) {
+    delay(50); // Debounce
+    if (digitalRead(PIN_BUTTON) == LOW) {
+      unsigned long pressStart = millis();
+      bool longPressTriggered = false;
+
+      while (digitalRead(PIN_BUTTON) == LOW) {
+        if (!longPressTriggered && (millis() - pressStart >= 1200)) {
+          Serial.println(">> LONG PRESS DETECTED! (Switch Mode)");
+          longPressTriggered = true;
+        }
+        delay(10);
+      }
+
+      unsigned long duration = millis() - pressStart;
+      if (duration < 1200) {
+        Serial.printf(">> SHORT TAP DETECTED! Duration: %lu ms (Capture Photo)\n", duration);
+      }
+      delay(300); // Cooldown
+    }
   }
 }
 ```
 
-**Expected result:** Serial Monitor shows messages when each button is pressed ✅
-
-> ⚠️ **Remember:** GPIO 0 must be disconnected from GND before testing (it was connected for flashing). The 10kΩ pull-up resistor now holds it HIGH.
+**Expected result in Serial Monitor:**
+- Short tap prints `>> SHORT TAP DETECTED!` ✅
+- Holding > 1.2 sec prints `>> LONG PRESS DETECTED!` ✅
 
 ---
 
-## 🔌 Step 5: INMP441 Microphone (I2S)
+## 🔌 Step 5: MAX98357A I2S Amplifier + Speaker
 
-### What You're Connecting
+The MAX98357A takes digital audio from the ESP32 via I2S and drives the micro speaker. It is used for audio feedback (boot chime, shutter click, mode beep, error sound).
 
-The INMP441 is a digital microphone that outputs audio data via the I2S protocol (3 signal wires + power).
+> **Note:** The microphone (INMP441) is **not used** in the current firmware. The audio system is purely for speaker output.
 
-### INMP441 Board Pinout
+### MAX98357A Pinout Reference
 
 ```
-  INMP441 breakout board (top view):
-  ┌──────────────────┐
-  │                  │
-  │  [  mic hole  ]  │
-  │                  │
-  │ VDD  GND  SD     │
-  │ L/R  WS   SCK    │
-  └──────────────────┘
+  MAX98357A Breakout Board:
+  ┌───────────────────────────────────┐
+  │  VIN   GND   SD   GAIN   DIN      │
+  │                          BCLK LRC │
+  │                                   │
+  │     [Speaker +]     [Speaker -]   │
+  └───────────────────────────────────┘
 ```
 
 ### Connections
 
-| Wire # | From (INMP441) | To | Wire Color | Notes |
-|--------|----------------|-----|------------|-------|
-| 1 | **VDD** | **3.3V** rail | 🔴 Red | Power (1.8V–3.3V) |
-| 2 | **GND** | **GND** rail | ⚫ Black | |
-| 3 | **SCK** | **ESP32-CAM GPIO 12** | 🟠 Orange | I2S bit clock |
-| 4 | **WS** | **ESP32-CAM GPIO 4** | 🟢 Green | I2S word select |
-| 5 | **SD** | **ESP32-CAM GPIO 15** | 🟣 Purple | I2S data output |
-| 6 | **L/R** | **GND** rail | ⚫ Black | Selects LEFT channel |
-
-```
-INMP441                     ESP32-CAM
-┌──────────┐               ┌──────────────┐
-│ VDD    ──├── 🔴 ────────►├── (3.3V rail)│
-│ GND    ──├── ⚫ ────────►├── (GND rail) │
-│ SCK    ──├── 🟠 ────────►├── GPIO 12    │
-│ WS     ──├── 🟢 ────────►├── GPIO 4     │
-│ SD     ──├── 🟣 ────────►├── GPIO 15    │
-│ L/R    ──├── ⚫ ────────►├── (GND rail) │
-└──────────┘               └──────────────┘
-```
-
-### Decoupling Capacitor
-
-Place a **100nF ceramic capacitor** near the INMP441:
-- One leg into the same row as INMP441 VDD
-- Other leg into the GND rail
-
-### ✅ Test Step 5
-
-Upload this test sketch:
-
-```cpp
-#include <driver/i2s.h>
-
-#define I2S_SCK  12
-#define I2S_WS    4
-#define I2S_SD   15
-
-void setup() {
-  Serial.begin(115200);
-  
-  i2s_config_t i2s_config = {
-    .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
-    .sample_rate = 16000,
-    .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
-    .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
-    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
-    .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-    .dma_buf_count = 4,
-    .dma_buf_len = 1024,
-    .use_apll = false
-  };
-  
-  i2s_pin_config_t pin_config = {
-    .bck_io_num = I2S_SCK,
-    .ws_io_num = I2S_WS,
-    .data_out_num = I2S_PIN_NO_CHANGE,
-    .data_in_num = I2S_SD
-  };
-  
-  i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
-  i2s_set_pin(I2S_NUM_0, &pin_config);
-  
-  Serial.println("Microphone ready! Speak into it...");
-  Serial.println("You should see numbers change when you speak.");
-}
-
-void loop() {
-  int16_t sample;
-  size_t bytesRead;
-  
-  i2s_read(I2S_NUM_0, &sample, sizeof(sample), &bytesRead, portMAX_DELAY);
-  
-  // Print absolute amplitude — should spike when you speak
-  int amplitude = abs(sample);
-  
-  // Only print significant values to avoid flooding serial
-  if (amplitude > 500) {
-    Serial.printf("Amplitude: %d ", amplitude);
-    // Visual bar
-    int bars = amplitude / 500;
-    if (bars > 40) bars = 40;
-    for (int i = 0; i < bars; i++) Serial.print("█");
-    Serial.println();
-  }
-}
-```
-
-**Expected result:** Serial Monitor shows amplitude bars that spike when you speak or clap near the mic ✅
-
-> **If you see only zeros:** Check that L/R pin is connected to GND, and double-check SCK, WS, SD wires.
-
----
-
-## 🔌 Step 6: MAX98357A Amplifier + Speaker (I2S)
-
-### What You're Connecting
-
-The MAX98357A takes digital audio from the ESP32 via I2S and drives the speaker.
-
-### MAX98357A Board Pinout
-
-```
-  MAX98357A breakout board:
-  ┌──────────────────────────────┐
-  │  VIN  GND  SD  GAIN  DIN    │
-  │                    BCLK LRC │
-  │                              │
-  │        [Speaker +]  [Speaker -]
-  └──────────────────────────────┘
-```
-
-### Connections
-
-| Wire # | From (MAX98357A) | To | Wire Color | Notes |
-|--------|------------------|-----|------------|-------|
-| 1 | **VIN** | **3.3V** rail | 🔴 Red | Power (2.5V–5.5V) |
-| 2 | **GND** | **GND** rail | ⚫ Black | |
-| 3 | **BCLK** | **ESP32-CAM GPIO 12** | 🟠 Orange | Shared with mic SCK |
-| 4 | **LRC** | **ESP32-CAM GPIO 4** | 🟢 Green | Shared with mic WS |
-| 5 | **DIN** | **ESP32-CAM GPIO 2** | ⚪ White | Audio data to speaker |
-| 6 | **SD** | Not connected | — | Leave floating (internally pulled HIGH) |
-| 7 | **GAIN** | Not connected | — | Default 9dB gain |
+| Wire # | From (MAX98357A) | To (ESP32-CAM) | Wire Color | Notes |
+|--------|------------------|----------------|------------|-------|
+| 1 | **VIN** | **5V** (or 3.3V) | 🔴 Red | 5V gives full volume |
+| 2 | **GND** | **GND rail** | ⚫ Black | Common ground |
+| 3 | **LRC** (WS) | **ESP32-CAM GPIO 2** | 🟢 Green | Word select (L/R clock) |
+| 4 | **BCLK** | **ESP32-CAM GPIO 4** | 🟠 Orange | Bit clock |
+| 5 | **DIN** | **ESP32-CAM GPIO 12** | 🟣 Purple | Audio data into amp |
+| 6 | **SD** | *Unconnected* | — | Leave floating (always-on mode) |
+| 7 | **GAIN** | *Unconnected* | — | Leave floating (+9dB default) |
 
 ### Speaker Wires
 
@@ -433,25 +383,88 @@ The MAX98357A takes digital audio from the ESP32 via I2S and drives the speaker.
 | 9 | **Speaker −** terminal | Speaker **black wire (−)** | Solder or screw terminal |
 
 ```
-ESP32-CAM          MAX98357A              Speaker
-┌──────────┐      ┌───────────┐          ┌────────┐
-│ 3.3V   ──├─ 🔴 ─┤ VIN       │          │        │
-│ GND    ──├─ ⚫ ─┤ GND       │          │  ┌──┐  │
-│ GPIO 12──├─ 🟠 ─┤ BCLK      │  Spk+ ──┼──┤  │  │
-│ GPIO 4 ──├─ 🟢 ─┤ LRC       │  Spk- ──┼──┤  │  │
-│ GPIO 2 ──├─ ⚪ ─┤ DIN       │          │  └──┘  │
-└──────────┘      └───────────┘          └────────┘
+ESP32-CAM               MAX98357A                 Speaker
+┌──────────────┐       ┌────────────┐           ┌─────────┐
+│ 5V         ──├─ 🔴 ──┤ VIN        │           │         │
+│ GND        ──├─ ⚫ ──┤ GND        │   Spk + ──┤ + (Red) │
+│ GPIO 2     ──├─ 🟢 ──┤ LRC        │   Spk - ──┤ - (Blk) │
+│ GPIO 4     ──├─ 🟠 ──┤ BCLK       │           │  [🔈]   │
+│ GPIO 12    ──├─ 🟣 ──┤ DIN        │           └─────────┘
+└──────────────┘       └────────────┘
 ```
 
-> ⚠️ **I2S Sharing:** GPIO 12 (BCLK) and GPIO 4 (LRC) are shared between the microphone and the amplifier. This is fine — the firmware switches between mic and speaker mode, never running both at the same time.
+### ✅ Test Step 5
 
-### ✅ Test Step 6
+Upload this short test sketch to hear a test beep through the speaker:
 
-Speaker testing requires more code — for now, verify the wiring is correct by checking that the MAX98357A power LED is on. Full audio testing will happen with the final firmware.
+```cpp
+#include "driver/i2s.h"
+
+#define I2S_LRC_PIN   2
+#define I2S_BCLK_PIN  4
+#define I2S_DOUT_PIN 12
+
+void playTone(int freqHz, int durationMs) {
+  int samples = (16000 * durationMs) / 1000;
+  int period = 16000 / freqHz;
+  int16_t sampleBuf[64];
+  size_t bytesWritten;
+
+  for (int i = 0; i < samples; ) {
+    int chunk = min(32, samples - i);
+    for (int j = 0; j < chunk; j++) {
+      int16_t val = ((i + j) % period < period / 2) ? 6000 : -6000;
+      sampleBuf[j * 2]     = val; // Left channel
+      sampleBuf[j * 2 + 1] = val; // Right channel
+    }
+    i2s_write(I2S_NUM_0, sampleBuf, chunk * 4, &bytesWritten, portMAX_DELAY);
+    i2s_write(I2S_NUM_0, sampleBuf, chunk * 4, &bytesWritten, portMAX_DELAY);
+    i += chunk;
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  i2s_config_t i2s_config = {
+    .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
+    .sample_rate = 16000,
+    .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+    .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
+    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+    .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+    .dma_buf_count = 4,
+    .dma_buf_len = 256,
+    .use_apll = false
+  };
+
+  i2s_pin_config_t pin_config = {
+    .bck_io_num = I2S_BCLK_PIN,
+    .ws_io_num = I2S_LRC_PIN,
+    .data_out_num = I2S_DOUT_PIN,
+    .data_in_num = I2S_PIN_NO_CHANGE
+  };
+
+  i2s_driver_install(I2S_NUM_0, &i2s_config, 0, NULL);
+  i2s_set_pin(I2S_NUM_0, &pin_config);
+
+  Serial.println("Playing test tone on speaker...");
+  playTone(880, 200);  // A5 tone
+  delay(100);
+  playTone(1760, 300); // A6 tone
+  Serial.println("Speaker test complete!");
+}
+
+void loop() {}
+```
+
+**Expected result:** You will hear two crisp test tones from the speaker ✅
+
+> **If no sound:** Check that VIN is powered (5V or 3.3V) and verify that GPIO 2 (LRC), GPIO 4 (BCLK), and GPIO 12 (DIN) are firmly connected.
 
 ---
 
-## 🔌 Step 7: Power System (Battery — Final Step)
+## 🔌 Step 6: Power System (Battery — Final Step)
 
 > **Do this step LAST**, after all other components are tested using the FTDI adapter for power.
 
@@ -505,7 +518,7 @@ LiPo Battery        TP4056           AMS1117-3.3V        Breadboard
 
 Add a slide switch between TP4056 OUT+ and AMS1117 VIN to turn the glasses on/off without unplugging the battery.
 
-### ✅ Test Step 7
+### ✅ Test Step 6
 
 1. **Disconnect the FTDI adapter** completely
 2. Charge the battery via TP4056 USB (red LED = charging, blue LED = full)
@@ -515,60 +528,110 @@ Add a slide switch between TP4056 OUT+ and AMS1117 VIN to turn the glasses on/of
 
 ---
 
-## 📋 Complete Connection Checklist
+## 📋 Complete Connection Checklist — Current Master Firmware
 
-After all steps, verify every connection against this master list:
+After all steps, verify every connection against this master list.
+This matches **`smart_glasses_master.ino`** exactly.
 
-### OLED Display (4 wires + 2 resistors + 1 cap)
-- [ ] OLED VCC → 3.3V rail
-- [ ] OLED GND → GND rail
-- [ ] OLED SDA → GPIO 13
-- [ ] OLED SCL → GPIO 14
-- [ ] 4.7kΩ resistor: 3.3V → GPIO 13
-- [ ] 4.7kΩ resistor: 3.3V → GPIO 14
-- [ ] 100nF cap near OLED VCC/GND
+---
 
-### INMP441 Microphone (6 wires + 1 cap)
-- [ ] INMP441 VDD → 3.3V rail
-- [ ] INMP441 GND → GND rail
-- [ ] INMP441 SCK → GPIO 12
-- [ ] INMP441 WS → GPIO 4
-- [ ] INMP441 SD → GPIO 15
-- [ ] INMP441 L/R → GND rail
-- [ ] 100nF cap near INMP441 VDD/GND
+### OLED SSD1306 Display — 4 wires + 2 pull-up resistors
 
-### MAX98357A + Speaker (5 wires + 2 speaker wires)
-- [ ] MAX98357A VIN → 3.3V rail
-- [ ] MAX98357A GND → GND rail
-- [ ] MAX98357A BCLK → GPIO 12 (shared with mic)
-- [ ] MAX98357A LRC → GPIO 4 (shared with mic)
-- [ ] MAX98357A DIN → GPIO 2
+| Wire | From (OLED) | To (ESP32-CAM) |
+|------|-------------|----------------|
+| 1 | VCC | 3.3V |
+| 2 | GND | GND |
+| 3 | SDA | **GPIO 13** |
+| 4 | SCL | **GPIO 14** |
+
+- [ ] OLED VCC → 3.3V
+- [ ] OLED GND → GND
+- [ ] OLED SDA → **GPIO 13**
+- [ ] OLED SCL → **GPIO 14**
+- [ ] 4.7kΩ resistor between 3.3V and GPIO 13 (SDA pull-up)
+- [ ] 4.7kΩ resistor between 3.3V and GPIO 14 (SCL pull-up)
+
+---
+
+### Smart Button (Single) — 2 wires, no resistor needed
+
+| Wire | From (Button) | To (ESP32-CAM) |
+|------|---------------|----------------|
+| 1 | Leg A | **GPIO 15** |
+| 2 | Leg B | **GND** |
+
+> Internal pull-up is enabled in firmware (`INPUT_PULLUP`) — **no external resistor needed**.
+
+- [ ] Button Leg A → **GPIO 15**
+- [ ] Button Leg B → **GND**
+
+**Button behaviour:**
+- Short press (< 1.2s) = Take photo / run AI
+- Long press (≥ 1.2s) = Cycle mode (VISION → OCR → TRANSLATE)
+
+---
+
+### MAX98357A I2S Amplifier + Speaker — 5 wires + 2 speaker wires
+
+| Wire | From (MAX98357A) | To (ESP32-CAM) | Notes |
+|------|-----------------|----------------|-------|
+| 1 | VIN | **5V** | Use 5V for full volume |
+| 2 | GND | **GND** | |
+| 3 | LRC (WS) | **GPIO 2** | Word select |
+| 4 | BCLK | **GPIO 4** | Bit clock |
+| 5 | DIN | **GPIO 12** | Audio data |
+| 6 | SD | *Unconnected* | Always-on mode |
+| 7 | Speaker + terminal | Speaker **+** wire | |
+| 8 | Speaker − terminal | Speaker **−** wire | |
+
+- [ ] MAX98357A VIN → **5V**
+- [ ] MAX98357A GND → **GND**
+- [ ] MAX98357A LRC → **GPIO 2**
+- [ ] MAX98357A BCLK → **GPIO 4**
+- [ ] MAX98357A DIN → **GPIO 12**
+- [ ] MAX98357A SD → *leave unconnected*
 - [ ] Speaker + → MAX98357A Speaker +
 - [ ] Speaker − → MAX98357A Speaker −
 
-### Push Buttons (4 wires + 2 resistors)
-- [ ] Button 1 Leg A → GPIO 0
-- [ ] Button 1 Leg B → GND rail
-- [ ] 10kΩ resistor: 3.3V → GPIO 0
-- [ ] Button 2 Leg A → GPIO 16
-- [ ] Button 2 Leg B → GND rail
-- [ ] 10kΩ resistor: 3.3V → GPIO 16
+**Sound events:**
+- Boot ready → 3-note ascending chime
+- Photo taken → short click beep
+- Mode changed → two-tone blip
+- AI result received → rising beep
+- Error → descending double beep
 
-### Power System (6 wires + 2 caps)
-- [ ] Battery + → TP4056 B+
-- [ ] Battery − → TP4056 B−
-- [ ] TP4056 OUT+ → AMS1117 VIN
-- [ ] TP4056 OUT− → AMS1117 GND (and GND rail)
-- [ ] AMS1117 VOUT → 3.3V rail
-- [ ] AMS1117 GND → GND rail
-- [ ] 10µF electrolytic cap: AMS1117 VOUT to GND (check polarity!)
-- [ ] 100nF ceramic cap: near ESP32-CAM 3V3 to GND
+---
 
-### ESP32-CAM to Breadboard (2 wires)
-- [ ] ESP32-CAM 3V3 → 3.3V rail
-- [ ] ESP32-CAM GND → GND rail
+### Power — Battery to ESP32-CAM
 
-**Total: ~33 connections** ✅
+| Wire | From | To |
+|------|------|----|
+| 1 | Battery + (via TP4056 OUT+) | ESP32-CAM **5V** pin |
+| 2 | Battery − (via TP4056 OUT−) | ESP32-CAM **GND** pin |
+
+- [ ] TP4056 B+ → LiPo battery +
+- [ ] TP4056 B− → LiPo battery −
+- [ ] TP4056 OUT+ → ESP32-CAM 5V
+- [ ] TP4056 OUT− → ESP32-CAM GND
+
+---
+
+### All GPIO Used — Quick Reference
+
+```
+ESP32-CAM
+├── GPIO  2  →  Speaker LRC (Word Select)
+├── GPIO  4  →  Speaker BCLK (Bit Clock)
+├── GPIO 12  →  Speaker DIN (Data)
+├── GPIO 13  →  OLED SDA
+├── GPIO 14  →  OLED SCL
+├── GPIO 15  →  Button (other leg to GND)
+├── 3.3V     →  OLED VCC
+├── 5V       →  MAX98357A VIN + Battery in
+└── GND      →  OLED GND, Button GND, MAX98357A GND
+```
+
+**Total connections: ~16** ✅ (much simpler than old version)
 
 ---
 
@@ -581,8 +644,9 @@ After all steps, verify every connection against this master list:
 | Swapping TX and RX on FTDI | "Failed to connect" error | Swap yellow and green wires |
 | GPIO 0 still connected to GND after flashing | Code won't run (stuck in flash mode) | Remove the GPIO 0 → GND wire |
 | Reversed electrolytic capacitor | Capacitor may pop/explode | Longer leg = positive (+) |
-| Mic L/R pin left floating | Mic outputs no data | Connect L/R to GND |
+| Connecting button to wrong pin or adding external pull-down | Button presses not detected | Connect between GPIO 15 and GND only |
 | Speaker connected directly to GPIO | Very faint/no audio + possible GPIO damage | Must use MAX98357A amplifier |
+| MAX98357A connected to 3.3V with high volume | Distortion or brownout reset | Power MAX98357A from 5V rail |
 | Loose breadboard connections | Intermittent failures | Press wires firmly; use short wires |
 
 ---
@@ -590,15 +654,23 @@ After all steps, verify every connection against this master list:
 ## 🔄 Assembly Order Summary
 
 ```
-Step 1 → Set up breadboard power rails
-Step 2 → ESP32-CAM + FTDI (verify you can upload code)
-Step 3 → OLED display (verify text shows on screen)
-Step 4 → Push buttons (verify presses detected)
-Step 5 → INMP441 microphone (verify audio amplitude)
-Step 6 → MAX98357A + speaker (verify power LED on)
-Step 7 → Battery power system (verify 3.3V output)
+Step 1 → ESP32-CAM + FTDI adapter
+          Verify: can upload code via Arduino IDE
 
-Then → Upload the full smart_glasses_firmware.ino
-     → Start the Flask server on your PC
-     → Test all 5 modes!
+Step 2 → OLED SSD1306 (GPIO 13 SDA, GPIO 14 SCL)
+          Verify: OLED shows boot screen text
+
+Step 3 → Smart Button (GPIO 15 → GND)
+          Verify: short press and long press detected in Serial Monitor
+
+Step 4 → MAX98357A + Speaker (GPIO 2 LRC, GPIO 4 BCLK, GPIO 12 DIN)
+          Verify: startup chime plays on boot
+
+Step 5 → Battery (LiPo + TP4056 → ESP32-CAM 5V)
+          Verify: boots without FTDI connected
+
+Then  → Upload smart_glasses_master.ino
+      → Start the Flask server on your PC
+      → Short press button to capture & get AI result
+      → Long press button to switch mode (VISION / OCR / TRANSLATE)
 ```
